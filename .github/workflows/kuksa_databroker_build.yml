@@ -44,6 +44,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
             target/
           key: databroker-lint-${{ hashFiles('**/Cargo.lock') }}
       - name: Show toolchain information
@@ -75,8 +77,10 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
             target/
-          key: databroker-coverage-${{ hashFiles('**/Cargo.lock') }}
+          key: databroker-test-${{ hashFiles('**/Cargo.lock') }}
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
@@ -109,12 +113,15 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
+          ~/.cargo/.crates.toml
+          ~/.cargo/.crates2.json
           target/
-        key: databroker-release-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
+        key: databroker-build-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
     - name: Install build prerequisites
       working-directory: ${{github.workspace}}/
       run: |
         which cross || cargo install cross
+        cargo --version
         cargo install cargo-license cargo-cyclonedx
         pip install "git+https://github.com/eclipse-kuksa/kuksa-common.git@6f3d7627760582d8ba83cc8a0f7449d00fffee84#subdirectory=sbom-tools"
     - name: Build
@@ -269,6 +276,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
             target/
           key: databroker-bom-${{ hashFiles('**/Cargo.lock') }}
 

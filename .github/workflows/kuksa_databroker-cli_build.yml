@@ -49,6 +49,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
             target/
           key: databroker-cli-lint-${{ hashFiles('**/Cargo.lock') }}
       - name: cargo fmt
@@ -84,12 +86,15 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
+          ~/.cargo/.crates.toml
+          ~/.cargo/.crates2.json
           target/
         key: databroker-cli-release-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
     - name: Install build prerequisites
       working-directory: ${{github.workspace}}/
       run: |
         which cross || cargo install cross
+        cargo --version
         cargo install cargo-license cargo-cyclonedx
         pip install "git+https://github.com/eclipse-kuksa/kuksa-common.git@6f3d7627760582d8ba83cc8a0f7449d00fffee84#subdirectory=sbom-tools"
     - name: Build
@@ -217,8 +222,10 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
             target/
-          key: databroker-bom-${{ hashFiles('**/Cargo.lock') }}
+          key: databroker-cli-bom-${{ hashFiles('**/Cargo.lock') }}
 
       # Follows the pattern from
       # https://github.com/eclipse/dash-licenses?tab=readme-ov-file#example-rustcargo
