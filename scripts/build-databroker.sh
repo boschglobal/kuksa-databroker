@@ -64,8 +64,6 @@ echo >${TARGET_MAP}/amd64  x86_64-unknown-linux-musl
 # yet supported
 echo >${TARGET_MAP}/riscv64  riscv64gc-unknown-linux-gnu
 
-CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
 # Check if a certain feature set was requested
 if [ -z "$KUKSA_DATABROKER_FEATURES" ]; then
     # If not set, assign a default value
@@ -74,7 +72,7 @@ fi
 
 SBOM=0
 # Check whether to build SBOM
-if [ ! -z "$KUKSA_DATABROKER_SBOM" ]; then
+if [ -n "$KUKSA_DATABROKER_SBOM" ]; then
     # If set, check whether it is "y"
     if [[ $KUKSA_DATABROKER_SBOM =~ ^[Yy](es)?$ || $KUKSA_DATABROKER_SBOM =~ ^[Tt](rue)?$ ]]; then
         SBOM=1
@@ -96,8 +94,8 @@ echo  "Building with features: $KUKSA_DATABROKER_FEATURES"
 # Rust target triplett (i.e. x86_64-unknown-linux-musl) and the corresponding docker
 # architecture (i.e. amd64) as input
 function build_target() {
-    target_rust=$1
-    target_docker=$2
+    target=$1
+    platform=$2
 
     # Need to set different target dir for different platforms, becasue cargo mixes things up
     # when recycling the default target dir. When you do not do this, and e.g. first build amd64
@@ -111,20 +109,22 @@ function build_target() {
     #  /target/release/build/libc-2dd22ab6b5fb9fd2/build-script-build: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.29' not found (required by /target/release/build/libc-2dd22ab6b5fb9fd2/build-script-build)
     #
     # this is solved by using different target-dirs for each platform
-    echo "Building databroker for target $target_rust"
-    cross build --target $target_rust --target-dir ./target-$target_docker --features $KUKSA_DATABROKER_FEATURES --bin databroker --release
+    echo "Building databroker for target $target"
+    target_dir="./target/cross-$platform"
+    cross build --target "$target" --target-dir "$target_dir" --features "$KUKSA_DATABROKER_FEATURES" --bin databroker --release
 
-    echo "Prepare $target_docker dist folder"
-    rm -rf ./dist/$target_docker || true
-    mkdir ./dist/$target_docker
-    cp ./target-$target_docker/$target_rust/release/databroker ./dist/$target_docker
+    echo "Prepare $platform dist folder"
+    dist_dir="./dist/$platform"
+    rm -rf "$dist_dir" || true
+    mkdir "$dist_dir"
+    cp "$target_dir/$target"/release/databroker "$dist_dir"
 
     if [[ $SBOM -eq 1 ]]; then
-        echo "Create $target_rust SBOM"
-        cargo cyclonedx -v -f json --describe binaries --spec-version 1.4 --target $target_rust --manifest-path ./Cargo.toml
-        cp ./databroker/databroker_bin.cdx.json ./dist/$target_docker/sbom.json
-        rm -rf ./dist/$target_docker/thirdparty-licenses || true
-        collectlicensefiles ./databroker/databroker_bin.cdx.json ./dist/$target_docker/thirdparty-licenses --curation ./scripts/licensecuration.yaml
+        echo "Create $target SBOM"
+        cargo cyclonedx -v -f json --describe binaries --spec-version 1.4 --target "$target" --manifest-path ./Cargo.toml
+        cp ./databroker/databroker_bin.cdx.json "$dist_dir"/sbom.json
+        rm -rf "$dist_dir"/thirdparty-licenses || true
+        collectlicensefiles ./databroker/databroker_bin.cdx.json "$dist_dir"/thirdparty-licenses --curation ./scripts/license_curation.yaml
     fi
 }
 
@@ -147,8 +147,8 @@ mkdir -p ./dist
 
 for platform in "$@"
 do
-    target=$(cat ${TARGET_MAP}/$platform)
-    build_target $target $platform
+    target=$(cat "${TARGET_MAP}/$platform")
+    build_target "$target" "$platform"
 done
 
 rm -rf ${TARGET_MAP}

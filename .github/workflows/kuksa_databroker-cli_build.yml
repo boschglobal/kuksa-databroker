@@ -89,8 +89,8 @@ jobs:
           ~/.cargo/.crates.toml
           ~/.cargo/.crates2.json
           ~/.cache/pip/
-          target-*/
-        key: databroker-cli-release-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
+          target/
+        key: databroker-cli-build-${{ matrix.platform.name }}-${{ hashFiles('**/Cargo.lock') }}
     - name: Install build prerequisites
       working-directory: ${{github.workspace}}/
       run: |
