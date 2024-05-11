@@ -145,3 +145,5 @@ pub mod kuksa {
         }
     }
 }
+
+pub use prost_types::Timestamp;

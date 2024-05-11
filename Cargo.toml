@@ -17,6 +17,7 @@ resolver = "2"
 
 members = [
     "databroker",
+    "databroker-perf",
     "databroker-proto",
     "databroker-cli",
 ]
