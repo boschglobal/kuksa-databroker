@@ -715,13 +715,13 @@ pub async fn sdv_main(_cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                                     });
 
                                 cli::print_info(format!(
-                                    "{:<max_len_path$} {:<10} {:<9}",
-                                    "Path", "Entry type", "Data type"
+                                    "{:<max_len_path$} {:<10} {:<9} {:<3}",
+                                    "Path", "Entry type", "Data type", "Id"
                                 ))?;
 
                                 for entry in &filtered_metadata {
                                     println!(
-                                        "{:<max_len_path$} {:<10} {:<9}",
+                                        "{:<max_len_path$} {:<10} {:<9} {:<3}",
                                         entry.name,
                                         DisplayEntryType::from(proto::v1::EntryType::from_i32(
                                             entry.entry_type
@@ -729,6 +729,7 @@ pub async fn sdv_main(_cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                                         DisplayDataType::from(proto::v1::DataType::from_i32(
                                             entry.data_type
                                         )),
+                                        entry.id
                                     );
                                 }
                             }

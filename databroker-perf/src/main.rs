@@ -11,34 +11,37 @@
 * SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-use std::{collections::HashMap, time::SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use databroker_proto::sdv::databroker::v1 as proto;
 use hdrhistogram::Histogram;
 use log::error;
-use sampler::Sampler;
-use tokio::{join, sync::mpsc};
+use tokio::{task::JoinSet, time::Instant};
 
 mod config;
 mod provider;
-mod sampler;
 mod subscriber;
+mod types;
 
 #[derive(Parser)]
 #[clap(author, version, about)]
 struct Args {
     #[clap(long, display_order = 1, default_value_t = 1000)]
     iterations: u64,
-    // #[clap(long, display_order = 2, default_value_t = 32)]
-    // sample_size: u64,
     #[clap(long, display_order = 3, default_value = "http://127.0.0.1")]
     host: String,
     #[clap(long, display_order = 4, default_value_t = 55555)]
     port: u64,
-    #[clap(long = "config", display_order = 5, value_name = "CONFIG_FILE")]
+    #[clap(long, display_order = 5, default_value_t = 10)]
+    skip: u64,
+    #[clap(long = "config", display_order = 6, value_name = "CONFIG_FILE")]
     config_file: Option<String>,
-    #[clap(long = "verbosity", short, display_order = 6, default_value_t = log::Level::Warn)]
+    #[clap(long = "verbosity", short, display_order = 7, default_value_t = log::Level::Warn)]
     verbosity_level: log::Level,
 }
 
@@ -50,11 +53,10 @@ async fn main() -> Result<()> {
     stderrlog::new()
         .module(module_path!())
         .verbosity(args.verbosity_level)
-        .init()
-        .unwrap();
+        .init()?;
 
-    let iterations = args.iterations;
-    let sample_size = 1; //args.sample_size;
+    let iterations = args.iterations + args.skip;
+    let skip = args.skip;
     let databroker_address = format!("{}:{}", args.host, args.port);
 
     let signals = match args.config_file {
@@ -83,106 +85,124 @@ async fn main() -> Result<()> {
         .await
         .with_context(|| "Failed to connect to server")?;
 
-    let provider = provider::Provider::new(provider_channel.clone(), signals.into_iter())
-        .await
-        .with_context(|| "Failed to setup provider")?;
+    let metadata =
+        provider::get_metadata(provider_channel.clone(), signals.clone().into_iter()).await?;
 
-    let (subscriber_tx, mut subscriber_rx) = mpsc::channel(100);
-    let (provider_tx, mut provider_rx) = mpsc::channel(100);
-    let subscriber_sampler = Sampler::new(iterations, sample_size, subscriber_tx);
-    let provider_sampler = Sampler::new(iterations, sample_size, provider_tx);
+    let provider = provider::Provider::new(provider_channel.clone(), metadata.clone())
+        .with_context(|| "Failed to setup provider")?;
 
     let subscriber_channel = endpoint
         .connect()
         .await
         .with_context(|| "Failed to connect to server")?;
 
+    let subscriber =
+        subscriber::Subscriber::new(subscriber_channel, signals.clone(), metadata.clone());
+
+    let mut hist = Histogram::<u64>::new_with_bounds(1, 60 * 60 * 1000 * 1000, 3)?;
+
     let start_time = SystemTime::now();
-    let subscriber_task = tokio::spawn(async move {
-        match subscriber::subscribe(subscriber_sampler, subscriber_channel).await {
-            Ok(_) => {}
-            Err(err) => {
-                error!("failed to subscribe: {}", err);
-            }
-        }
-    });
 
-    let provider_task = tokio::spawn(async move {
-        provider::provide(provider_sampler, provider).await;
-    });
-
-    let mut hist = Histogram::<u64>::new_with_bounds(1, 60 * 60 * 1000 * 1000, 3).unwrap();
-
-    let mut samples = HashMap::with_capacity(sample_size.try_into().unwrap());
-
+    let mut n = 0;
+    let mut skipped = 0;
+    let mut interval = tokio::time::interval(Duration::from_millis(1));
     loop {
-        match join!(provider_rx.recv(), subscriber_rx.recv()) {
-            (Some(Ok(provided_samples)), Some(Ok(received_samples))) => {
-                for sample in received_samples {
-                    samples.insert(sample.cycle, sample.timestamp);
-                }
+        if n >= iterations {
+            break;
+        }
+        interval.tick().await;
 
-                for sample in provided_samples {
-                    match samples.get(&sample.cycle) {
-                        Some(end_time) => {
-                            let start_time = sample.timestamp;
-                            let latency = end_time.duration_since(start_time);
-                            // println!("({}) latency: {}", sample.cycle, latency.as_nanos());
-                            hist.record(latency.as_micros().try_into().unwrap())
-                                .unwrap();
-                            samples.remove(&sample.cycle);
-                        }
-                        None => {
-                            // eprintln!("missing sample {}", sample.cycle);
-                        }
+        let datapoints = HashMap::from_iter(metadata.iter().map(|entry| {
+            let data_type = proto::DataType::from_i32(entry.1.data_type)
+                .expect("proto i32 enum representation should always be valid enum");
+            (
+                entry.1.id,
+                proto::Datapoint {
+                    timestamp: None,
+                    value: Some(provider::n_to_value(&data_type, n).unwrap()),
+                },
+            )
+        }));
+
+        let published = provider.publish(datapoints);
+
+        let mut tasks: JoinSet<Result<Instant, subscriber::Error>> = JoinSet::new();
+
+        for signal in &signals {
+            // TODO: return an awaitable thingie (wrapping the Receiver<Instant>)
+            let mut sub = subscriber.wait_for2(&signal.path)?;
+            tasks.spawn(async move {
+                Ok(sub
+                    .recv()
+                    .await
+                    .map_err(|err| subscriber::Error::RecvError(err.to_string()))?)
+            });
+        }
+
+        let published = published.await?;
+        while let Some(received) = tasks.join_next().await {
+            match received {
+                Ok(Ok(received)) => {
+                    if n < skip {
+                        skipped += 1;
+                        continue;
                     }
+                    let latency = received.duration_since(published.clone());
+                    hist.record(latency.as_micros().try_into().unwrap())?;
                 }
-            }
-            (None, None) => {
-                // Done
-                break;
-            }
-            (_p, _s) => {
-                error!("recieved non-ok message from subscriber / provider");
-                break;
+                Ok(Err(err)) => error!("{}", err.to_string()),
+                Err(err) => error!("{}", err.to_string()),
             }
         }
+
+        n += 1;
     }
-    let _ = join!(provider_task, subscriber_task);
 
     let end_time = SystemTime::now();
     let total_duration = end_time.duration_since(start_time)?;
     println!("Summary:");
-    println!("  Count: {}", hist.len());
+    println!(
+        "  Sent: {} * {} signals = {}",
+        n,
+        signals.len(),
+        n * signals.len() as u64
+    );
+    println!("  Skipped: {}", skipped);
+    println!("  Received: {}", hist.len());
     println!(
         "  Total: {:.2} s",
         total_duration.as_millis() as f64 / 1000.0
     );
-    println!("  Fastest: {:>7.2} ms", hist.min() as f64 / 1000.0);
-    println!("  Slowest: {:>7.2} ms", hist.max() as f64 / 1000.0);
-    println!("  Average: {:>7.2} ms", hist.mean() as f64 / 1000.0);
-    println!(
-        "  Requests / s: {:.2}",
-        hist.len() as f64 / total_duration.as_secs_f64()
-    );
-    println!("\nResponse time histogram:");
+    println!("  Fastest: {:>7.3} ms", hist.min() as f64 / 1000.0);
+    println!("  Slowest: {:>7.3} ms", hist.max() as f64 / 1000.0);
+    println!("  Average: {:>7.3} ms", hist.mean() as f64 / 1000.0);
+    println!("\nLatency histogram:");
     let step_size = (hist.max() - hist.min()) / 11;
 
-    for v in hist.iter_linear(step_size) {
+    let buckets = hist.iter_linear(step_size);
+    // skip initial empty buckets
+    let buckets = buckets.skip_while(|v| v.count_since_last_iteration() == 0);
+    let mut skipping_initial_empty = true;
+    for v in buckets {
         let mean = v.value_iterated_to() + 1 - step_size / 2; // +1 to make range inclusive
         let count = v.count_since_last_iteration();
-        let bars = count as f64 / iterations as f64 * 100.0;
+        if skipping_initial_empty && count == 0 {
+            continue;
+        } else {
+            skipping_initial_empty = false;
+        }
+        let bars = count as f64 / (iterations * signals.len() as u64) as f64 * 100.0;
         let bar = std::iter::repeat("∎")
             .take(bars as usize)
             .collect::<String>();
-        println!("  {:>7.2} ms [{:<5}] |{}", mean as f64 / 1000.0, count, bar);
+        println!("  {:>7.3} ms [{:<5}] |{}", mean as f64 / 1000.0, count, bar);
     }
 
     println!("\nLatency distribution:");
 
     for q in &[10, 25, 50, 75, 90, 95, 99] {
         println!(
-            "  {q}% in < {:.2} ms",
+            "  {q}% in under {:.3} ms",
             hist.value_at_quantile(*q as f64 / 100.0) as f64 / 1000.0
         );
     }

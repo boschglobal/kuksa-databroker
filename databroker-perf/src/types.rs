@@ -11,22 +11,19 @@
 * SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-pub struct Config {
-    pub signals: Vec<Signal>,
-}
-
-#[derive(Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Signal {
+    pub id: i32,
     pub path: String,
 }
 
+pub struct Metadata {}
+
 impl Signal {
-    pub fn new(path: impl ToString) -> Self {
+    pub fn new(id: i32, path: impl ToString) -> Self {
         Self {
             path: path.to_string(),
+            id,
         }
     }
 }
