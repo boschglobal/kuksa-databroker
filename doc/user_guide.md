@@ -274,7 +274,7 @@ Kuksa Databroker implements the following service interfaces:
 
 This error might occur when a client tries to connect to a Databroker with an active TLS configuration while using an 'http://' URL. The URL needs to be changed to 'https://'
 
-The databroker-cli will use 'http://127.0.0.1:55555' as a default value, therefore it is required to specify the `--server` flag (e.g. `--server https://127.0.0.1:55555`) when connecting from databroker-cli.
+The databroker-cli will use `http://127.0.0.1:55555` as a default value, therefore it is required to specify the `--server` flag (e.g. `--server https://127.0.0.1:55555`) when connecting from databroker-cli.
 
 ## Known Limitations
 
