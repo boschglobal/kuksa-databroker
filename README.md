@@ -7,7 +7,7 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/github_username/repo_name">
+  <a href="https://github.com/eclipse-kuksa/kuksa-databroker">
     <img src="./doc/pictures/logo.png" alt="Logo" width="500px">
   </a>
 
@@ -19,9 +19,9 @@
     <a href="./doc/user_guide.md"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/eclipse-kuksa/kuksa-databrokerissues">Report Bug</a>
+    <a href="https://github.com/eclipse-kuksa/kuksa-databroker/issues">Report Bug</a>
     ·
-    <a href="https://github.com/eclipse-kuksa/kuksa-databrokerissues">Request Feature</a>
+    <a href="https://github.com/eclipse-kuksa/kuksa-databroker/issues">Request Feature</a>
     ·
     <a href="https://matrix.to/#/#kuksa-val_community:gitter.im">Chat</a>
   </p>
@@ -32,7 +32,7 @@
   <summary>Table of Contents</summary>
   <ol>
     <li>
-      <a href="#intro">Intro</a>
+      <a href=".#Intro">Intro</a>
       <ul>
         <li><a href="#features">Features</a></li>
         <li><a href="#built-with">Built With</a></li>

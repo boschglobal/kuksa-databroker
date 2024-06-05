@@ -1,0 +1,69 @@
+diff --git forkSrcPrefix/README.md forkDstPrefix/README.md
+index 178428e6df771e366469112a5e4d6c1b4420d2bd..957318a9a2ba11966df29b5d49fefa7ed72fc13d 100644
+--- forkSrcPrefix/README.md
++++ forkDstPrefix/README.md
+@@ -7,7 +7,7 @@
+ <!-- PROJECT LOGO -->
+ <br />
+ <div align="center">
+-  <a href="https://github.com/github_username/repo_name">
++  <a href="https://github.com/eclipse-kuksa/kuksa-databroker">
+     <img src="./doc/pictures/logo.png" alt="Logo" width="500px">
+   </a>
+
+diff --git forkSrcPrefix/data/vss-core/README.md forkDstPrefix/data/vss-core/README.md
+index 550687c82651d5f61794ea4a0a6521736136b012..dbba2cffde7e048594689bd3483d61ebd57c2bf9 100644
+--- forkSrcPrefix/data/vss-core/README.md
++++ forkDstPrefix/data/vss-core/README.md
+@@ -40,8 +40,8 @@ This is the process for introducing support for a new VSS version:
+ * Some files (`*.txt`) instead list all versions, there just add the new version
+ * If needed, adapt or extend test cases to use the new version instead of previous version
+ * Remember to also integrate new version in [KUKSA Feeder](https://github.com/eclipse/kuksa.val.feeders) repository
+-    * Needed for [dbc2val](https://github.com/eclipse/kuksa.val.feeders/blob/main/dbc2val/mapping/mapping.md)
+-    * Needed for [dds2val](https://github.com/eclipse/kuksa.val.feeders/blob/main/dds2val/ddsproviderlib/idls/generate_py_dataclass.sh)
++    * Needed for [dbc2val](https://github.com/eclipse-kuksa/kuksa-can-provider/blob/main/mapping/README.md)
++    * Needed for [dds2val](https://github.com/eclipse-kuksa/kuksa-dds-provider/blob/main/ddsproviderlib/idls/generate_py_dataclass.sh)
+
+ ### Release Candidate Handling
+
+@@ -76,9 +76,9 @@ client> get Vehicle.CurrentLocation.Latitude
+
+ ### Kuksa_databroker and dbc2val smoke test
+
+-Run dbc2val as described in [documentation](https://github.com/eclipse/kuksa.val.feeders/blob/main/dbc2val/Readme.md) using example [dump file](https://github.com/eclipse/kuksa.val.feeders/blob/main/dbc2val/candump.log). It is important to use databroker mode.
++Run dbc2val as described in [documentation](https://github.com/eclipse-kuksa/kuksa-can-provider/blob/main/README.md) using example [dump file](https://github.com/eclipse-kuksa/kuksa-can-provider/blob/main/candump.log). It is important to use databroker mode.
+
+ ```sh
+ ./dbcfeeder.py --usecase databroker --address=127.0.0.1:55555
+ ```
+-Verify that no errors appear in kuksa-val-server log. Not all signals in the [mapping files](https://github.com/eclipse/kuksa.val.feeders/blob/main/dbc2val/mapping) are used by the example dump file, but it can be verified using Kuksa Client that e.g. `Vehicle.Speed` has been given a value.
++Verify that no errors appear in kuksa-val-server log. Not all signals in the [mapping files](https://github.com/eclipse-kuksa/kuksa-can-provider/tree/main/mapping) are used by the example dump file, but it can be verified using Kuksa Client that e.g. `Vehicle.Speed` has been given a value.
+diff --git forkSrcPrefix/doc/system-architecture.md forkDstPrefix/doc/system-architecture.md
+index 15cd2bc69c29297ca9bdd17d988a6a9cffce4467..caca40cb041e6af5e385a7352b3f33c1f8b3db15 100644
+--- forkSrcPrefix/doc/system-architecture.md
++++ forkDstPrefix/doc/system-architecture.md
+@@ -36,9 +36,9 @@ The following picture shows different kinds of possible KUKSA providers
+
+ We assume running a KUKSA VSS server on a vehicle computer. Some signals might originate in an embedded ECU only connected via CAN (e.g. ECU 1). If the Vehicle Computer running the VSS Server has access to the bus, it can run a provider component to map VSS Datapoints.
+
+-The [DBC Feeder](https://github.com/eclipse/kuksa.val.feeders/tree/main/dbc2val) is an example of a CAN data-provider. It allows mapping of data from a CAN bus based on a DBC description and some mapping rules.
++The [DBC Feeder](https://github.com/eclipse-kuksa/kuksa-can-provider) is an example of a CAN data-provider. It allows mapping of data from a CAN bus based on a DBC description and some mapping rules.
+
+-Other ECUs with Ethernet connectivity might publish data as SOME/IP (ECU 2 in the example) or DDS (ECU 3 in the example) services. The KUKSA project provides an [example SOME/IP provider](https://github.com/eclipse/kuksa.val.feeders/tree/main/someip2val) based on [vsomeip](https://github.com/COVESA/vsomeip) emulating a SOME/IP controllable wiper.
++Other ECUs with Ethernet connectivity might publish data as SOME/IP (ECU 2 in the example) or DDS (ECU 3 in the example) services. The KUKSA project provides an [example SOME/IP provider](https://github.com/eclipse-kuksa/kuksa-someip-provider) based on [vsomeip](https://github.com/COVESA/vsomeip) emulating a SOME/IP controllable wiper.
+
+ The Vehicle Computer running the VSS server might run other (automotive) middlewares that provides raw data and signals. In this example we assume the Vehicle Computer runs an AUTOSAR Adaptive subsystem. In that case a provider using the APIs of the underlying system can be created, without the need to parse a specific serialization first. In case of AUTOSAR Adaptive, signals might be accessed using the `ara::com` API.
+
+diff --git forkSrcPrefix/doc/terminology.md forkDstPrefix/doc/terminology.md
+index 501cbc6d42e7ecc0dd383ca2000cb613a5a8bfe7..6ff94080de07be1068f7091f6ed236e665c8aba2 100644
+--- forkSrcPrefix/doc/terminology.md
++++ forkDstPrefix/doc/terminology.md
+@@ -100,7 +100,7 @@ Attributes are signals that have a default value, specified by its default membe
+ The value of a signal. The data type of the value must match the data type specified in the VSS entry for the signal. Currently KUKSA.val supports the _current_value_ for sensors, actuators and attributes as well as _target_value_ for actuators
+
+ ## Metadata
+-Metadata of a VSS signal is data belonging to a signal, that is not the value. Standard VSS metadata are [unit](https://covesa.github.io/vehicle_signal_specification/rule_set/data_entry/data_unit_types/) and [datatype](https://covesa.github.io/vehicle_signal_specification/rule_set/data_entry/data_types/) as well as some human readable description or comments. Custom metadata entries may be defined in [VSS overlays](https://covesa.github.io/vehicle_signal_specification/rule_set/overlay/). Currently KUKSA.val does not support custom metadata.
++Metadata of a VSS signal is data belonging to a signal, that is not the value. Standard VSS metadata are [unit](https://covesa.github.io/vehicle_signal_specification/rule_set/data_entry/data_units/) and [datatype](https://covesa.github.io/vehicle_signal_specification/rule_set/data_entry/data_types/) as well as some human readable description or comments. Custom metadata entries may be defined in [VSS overlays](https://covesa.github.io/vehicle_signal_specification/rule_set/overlay/). Currently KUKSA.val does not support custom metadata.
+
+ ## Overlay
+ VSS has the concept of layering different signal trees on top of each other. This is called [overlay](https://covesa.github.io/vehicle_signal_specification/rule_set/overlay/). A layer may add signals to an existing VSS tree or extending and overriding existing signal entries.
