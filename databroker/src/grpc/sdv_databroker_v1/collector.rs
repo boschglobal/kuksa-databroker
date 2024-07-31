@@ -209,6 +209,7 @@ impl proto::collector_server::Collector for broker::DataBroker {
                             metadata.description,
                             None,
                             None,
+                            None,
                         )
                         .await
                     {

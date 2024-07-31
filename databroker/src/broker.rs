@@ -96,6 +96,7 @@ pub enum Field {
 pub struct Database {
     next_id: AtomicI32,
     path_to_id: HashMap<String, i32>,
+    staticid_to_id: HashMap<i32,i32>,
     entries: HashMap<i32, Entry>,
 }
 
@@ -1130,6 +1131,7 @@ impl<'a, 'b> DatabaseWriteAccess<'a, 'b> {
         change_type: ChangeType,
         entry_type: EntryType,
         description: String,
+        static_id: Option<i32>,
         allowed: Option<types::DataValue>,
         datapoint: Option<Datapoint>,
         unit: Option<String>,
@@ -1197,7 +1199,10 @@ impl<'a, 'b> DatabaseWriteAccess<'a, 'b> {
 
         // Add entry (mapped by id)
         self.db.entries.insert(id, new_entry);
-
+        if let Some(sid) = static_id {
+            self.db.staticid_to_id.insert(sid, id);
+        }
+       
         // Return the id
         Ok(id)
     }
@@ -1208,6 +1213,7 @@ impl Database {
         Self {
             next_id: Default::default(),
             path_to_id: Default::default(),
+            staticid_to_id: Default::default(),
             entries: Default::default(),
         }
     }
@@ -1256,6 +1262,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
         change_type: ChangeType,
         entry_type: EntryType,
         description: String,
+        static_id: Option<i32>,
         allowed: Option<types::DataValue>,
         unit: Option<String>,
     ) -> Result<i32, RegistrationError> {
@@ -1270,6 +1277,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
                 change_type,
                 entry_type,
                 description,
+                static_id,
                 allowed,
                 None,
                 unit,
@@ -1611,6 +1619,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test datapoint 1".to_owned(),
+                None,
                 Some(DataValue::BoolArray(Vec::from([true]))),
                 Some("kg".to_string()),
             )
@@ -1644,6 +1653,7 @@ mod tests {
                 EntryType::Sensor,
                 "Test datapoint 2".to_owned(),
                 None,
+                None,
                 Some("km".to_string()),
             )
             .await
@@ -1674,6 +1684,7 @@ mod tests {
                 "Test datapoint 1 (modified)".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -1693,6 +1704,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test signal 3".to_owned(),
+                None,
                 Some(DataValue::Int32Array(Vec::from([1, 2, 3, 4]))),
                 None,
             )
@@ -1719,6 +1731,7 @@ mod tests {
                 "Test datapoint 1".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -1730,6 +1743,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Actuator,
                 "Test datapoint 2".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -1878,6 +1892,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test datapoint 1".to_owned(),
+                None,
                 Some(DataValue::Int32Array(vec![100])),
                 None,
             )
@@ -2000,6 +2015,7 @@ mod tests {
                 "Test datapoint 1".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -2081,6 +2097,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test datapoint 1".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -2185,6 +2202,7 @@ mod tests {
                 "Test datapoint 1".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -2260,6 +2278,7 @@ mod tests {
                 "Test datapoint 1 (new description)".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Registration should succeed");
@@ -2325,6 +2344,7 @@ mod tests {
                 "Test datapoint 1".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -2336,6 +2356,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test datapoint 2".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -2439,6 +2460,7 @@ mod tests {
                 "Run of the mill test array".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -2502,6 +2524,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Run of the mill test array".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -2577,6 +2600,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Run of the mill test array".to_owned(),
+                None,
                 Some(DataValue::StringArray(vec![
                     String::from("yes"),
                     String::from("no"),
@@ -2747,6 +2771,7 @@ mod tests {
                 "Run of the mill test array".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -2831,6 +2856,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Run of the mill test array".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -2922,6 +2948,7 @@ mod tests {
                 "Run of the mill test array".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -2985,6 +3012,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test datapoint 1".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -3081,6 +3109,7 @@ mod tests {
                 "Run of the mill test signal".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -3091,6 +3120,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Run of the mill test signal".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -3122,6 +3152,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test signal 3".to_owned(),
+                None,
                 Some(DataValue::Int32Array(Vec::from([1, 2, 3, 4]))),
                 None,
             )
@@ -3136,6 +3167,7 @@ mod tests {
                 ChangeType::OnChange,
                 EntryType::Sensor,
                 "Test datapoint".to_owned(),
+                None,
                 Some(DataValue::BoolArray(Vec::from([true]))),
                 None,
             )

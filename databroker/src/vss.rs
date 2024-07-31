@@ -42,6 +42,7 @@ pub struct Entry {
     #[serde(rename = "type")]
     entry_type: EntryType,
     description: String,
+    static_id: Option<i32>,
     comment: Option<String>,
 
     // branch only
@@ -66,6 +67,7 @@ pub struct DataEntry {
     pub entry_type: types::EntryType,
     pub change_type: types::ChangeType,
     pub description: String,
+    pub static_id: Option<i32>,
     pub comment: Option<String>,
     pub unit: Option<String>,
     pub min: Option<types::DataValue>,
@@ -394,6 +396,7 @@ fn add_entry(
                         types::EntryType::Actuator,
                     ),
                     description: entry.description,
+                    static_id: entry.static_id,
                     comment: entry.comment,
                     unit: entry.unit,
                     min: try_from_json_value(entry.min, &data_type)?,
@@ -419,6 +422,7 @@ fn add_entry(
                 DataEntry {
                     entry_type: types::EntryType::Attribute,
                     description: entry.description,
+                    static_id: entry.static_id,
                     comment: entry.comment,
                     unit: entry.unit,
                     min: try_from_json_value(entry.min, &data_type)?,
@@ -448,6 +452,7 @@ fn add_entry(
                 DataEntry {
                     entry_type: types::EntryType::Sensor,
                     description: entry.description,
+                    static_id: entry.static_id,
                     comment: entry.comment,
                     unit: entry.unit,
                     min: try_from_json_value(entry.min, &data_type)?,

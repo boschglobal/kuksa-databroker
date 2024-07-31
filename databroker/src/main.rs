@@ -64,6 +64,7 @@ async fn add_kuksa_attribute(
             description,
             None,
             None,
+            None,
         )
         .await
     {
@@ -123,6 +124,7 @@ async fn read_metadata_file<'a, 'b>(
                 entry.change_type,
                 entry.entry_type,
                 entry.description,
+                entry.static_id,
                 entry.allowed,
                 entry.unit,
             )

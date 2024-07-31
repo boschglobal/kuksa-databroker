@@ -943,6 +943,7 @@ mod tests {
                 "Test datapoint 1".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -996,6 +997,7 @@ mod tests {
                 broker::ChangeType::OnChange,
                 broker::EntryType::Sensor,
                 "Test datapoint 1".to_owned(),
+                None,
                 None,
                 Some("km/h".to_owned()),
             )
@@ -1094,6 +1096,7 @@ mod tests {
                 "Test datapoint 1".to_owned(),
                 None,
                 None,
+                None,
             )
             .await
             .expect("Register datapoint should succeed");
@@ -1105,6 +1108,7 @@ mod tests {
                 broker::ChangeType::OnChange,
                 broker::EntryType::Sensor,
                 "Test branch datapoint 2".to_owned(),
+                None,
                 None,
                 None,
             )
@@ -1153,6 +1157,7 @@ mod tests {
                 broker::ChangeType::OnChange,
                 broker::EntryType::Sensor,
                 "Test datapoint 1".to_owned(),
+                None,
                 None,
                 None,
             )
