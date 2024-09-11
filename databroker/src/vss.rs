@@ -42,7 +42,8 @@ pub struct Entry {
     #[serde(rename = "type")]
     entry_type: EntryType,
     description: String,
-    static_id: Option<i32>,
+    #[serde(rename = "staticUID")]
+    static_uid: Option<serde_json::Value>,
     comment: Option<String>,
 
     // branch only
@@ -67,7 +68,7 @@ pub struct DataEntry {
     pub entry_type: types::EntryType,
     pub change_type: types::ChangeType,
     pub description: String,
-    pub static_id: Option<i32>,
+    pub static_id: Option<u32>,
     pub comment: Option<String>,
     pub unit: Option<String>,
     pub min: Option<types::DataValue>,
@@ -366,6 +367,17 @@ fn add_entry(
     path: String,
     entry: Entry,
 ) -> Result<(), Error> {
+    
+    let sid: Option<u32>;   
+    tracing::info!("For  {:?} from json static_uid: {:?}", path, entry.static_uid); 
+    if  entry.static_uid.is_some()  {
+        sid = u32::from_str_radix(entry.static_uid.clone().unwrap_or(serde_json::Value::Null).to_string().trim_matches('"').trim_start_matches("0x"),16).ok();
+        tracing::info!("Sid for  {:?} is {:?} from {:?}", path, sid, entry.static_uid.unwrap_or(serde_json::Value::Null).to_string().trim_matches('"').trim_start_matches("0x"));
+    }
+    else {
+        sid = None;
+    }
+
     match entry.entry_type {
         EntryType::Branch => match entry.children {
             Some(children) => {
@@ -387,6 +399,7 @@ fn add_entry(
                     ))
                 }
             };
+
             let _ = entries.insert(
                 path,
                 DataEntry {
@@ -396,7 +409,7 @@ fn add_entry(
                         types::EntryType::Actuator,
                     ),
                     description: entry.description,
-                    static_id: entry.static_id,
+                    static_id: sid,
                     comment: entry.comment,
                     unit: entry.unit,
                     min: try_from_json_value(entry.min, &data_type)?,
@@ -422,7 +435,7 @@ fn add_entry(
                 DataEntry {
                     entry_type: types::EntryType::Attribute,
                     description: entry.description,
-                    static_id: entry.static_id,
+                    static_id: sid,
                     comment: entry.comment,
                     unit: entry.unit,
                     min: try_from_json_value(entry.min, &data_type)?,
@@ -447,12 +460,13 @@ fn add_entry(
                     ))
                 }
             };
+
             let _ = entries.insert(
                 path,
                 DataEntry {
                     entry_type: types::EntryType::Sensor,
                     description: entry.description,
-                    static_id: entry.static_id,
+                    static_id: sid,
                     comment: entry.comment,
                     unit: entry.unit,
                     min: try_from_json_value(entry.min, &data_type)?,

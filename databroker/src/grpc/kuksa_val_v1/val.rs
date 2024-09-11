@@ -121,7 +121,38 @@ impl proto::val_server::Val for broker::DataBroker {
                 }
             }
             if !valid_requests.is_empty() {
-                for (matcher, view_fields, _, is_match, op_error) in &mut valid_requests {
+                for (matcher, view_fields, path, is_match, op_error) in &mut valid_requests {
+                    if path.starts_with("#") {
+                        
+                        let sid = u32::from_str_radix(path.trim_start_matches("#"),16).ok().unwrap_or(0);
+
+                        info!("Detected short id#: {} ({})", path, sid);
+                        match broker.get_entry_by_staticid(&sid).await {
+                           Ok(entry) => {
+                                let mut result_fields: HashSet<proto::Field> = HashSet::new();
+                                info!("found entry: {:?}", entry);
+                                if view_fields.contains(&proto::Field::Metadata) {
+                                    result_fields.extend(view_fields.clone());
+                                }
+                                if view_fields.contains(&proto::Field::ActuatorTarget)
+                                    || view_fields.contains(&proto::Field::Value)
+                                {
+                                    result_fields.extend(view_fields.clone());
+                                }
+                                if !result_fields.is_empty() {
+                                    let proto_entry =
+                                        proto_entry_from_entry_and_fields(entry, result_fields);
+                                    info!("Getting datapoint: {:?}", proto_entry);
+                                    entries.push(proto_entry);
+                                }
+
+                            }
+                            Err(_err)   => {
+                                info!("entry not found");
+                            }
+                        }
+                        continue; // this entry was short id,no need to glob, move on to next             
+                    }
                     broker
                         .for_each_entry(|entry| {
                             let mut result_fields: HashSet<proto::Field> = HashSet::new();

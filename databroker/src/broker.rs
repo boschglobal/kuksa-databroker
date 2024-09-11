@@ -96,7 +96,7 @@ pub enum Field {
 pub struct Database {
     next_id: AtomicI32,
     path_to_id: HashMap<String, i32>,
-    staticid_to_id: HashMap<i32,i32>,
+    staticid_to_id: HashMap<u32,i32>,
     entries: HashMap<i32, Entry>,
 }
 
@@ -1027,6 +1027,13 @@ impl<'a, 'b> DatabaseReadAccess<'a, 'b> {
         }
     }
 
+    pub fn get_entry_by_staticid(&self, staticid: &u32) -> Result<&Entry, ReadError> {
+        match self.db.staticid_to_id.get(staticid) {
+            Some(id) => self.get_entry_by_id(*id),
+            None => Err(ReadError::NotFound),
+        }
+    }
+
     pub fn get_metadata_by_id(&self, id: i32) -> Option<&Metadata> {
         self.db.entries.get(&id).map(|entry| &entry.metadata)
     }
@@ -1131,7 +1138,7 @@ impl<'a, 'b> DatabaseWriteAccess<'a, 'b> {
         change_type: ChangeType,
         entry_type: EntryType,
         description: String,
-        static_id: Option<i32>,
+        static_id: Option<u32>,
         allowed: Option<types::DataValue>,
         datapoint: Option<Datapoint>,
         unit: Option<String>,
@@ -1193,14 +1200,17 @@ impl<'a, 'b> DatabaseWriteAccess<'a, 'b> {
         let id = self.db.next_id.fetch_add(1, Ordering::SeqCst);
 
         // Map name -> id
-        self.db.path_to_id.insert(name, id);
+        self.db.path_to_id.insert(name.clone(), id);
 
         new_entry.metadata.id = id;
 
         // Add entry (mapped by id)
         self.db.entries.insert(id, new_entry);
+
+        info!("Static id for name {} is {:?}", name, static_id);
         if let Some(sid) = static_id {
             self.db.staticid_to_id.insert(sid, id);
+            info!("Added static id {} for path {}", sid, name);
         }
        
         // Return the id
@@ -1262,7 +1272,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
         change_type: ChangeType,
         entry_type: EntryType,
         description: String,
-        static_id: Option<i32>,
+        static_id: Option<u32>,
         allowed: Option<types::DataValue>,
         unit: Option<String>,
     ) -> Result<i32, RegistrationError> {
@@ -1302,6 +1312,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             .get_metadata_by_path(name)
             .map(|metadata| metadata.id)
     }
+
 
     pub async fn get_datapoint(&self, id: i32) -> Result<Datapoint, ReadError> {
         self.broker
@@ -1360,6 +1371,16 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             .await
             .authorized_read_access(self.permissions)
             .get_entry_by_id(id)
+            .cloned()
+    }
+
+    pub async fn get_entry_by_staticid(&self, staticid: &u32) -> Result<Entry, ReadError> {
+        self.broker
+            .database
+            .read()
+            .await
+            .authorized_read_access(self.permissions)
+            .get_entry_by_staticid(staticid)
             .cloned()
     }
 
