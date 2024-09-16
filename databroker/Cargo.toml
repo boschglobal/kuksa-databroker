@@ -65,13 +65,14 @@ axum = { version = "0.6.20", optional = true, features = ["ws"] }
 futures = { version = "0.3.28", optional = true }
 chrono = { version = "0.4.31", optional = true, features = ["std"] }
 uuid = { version = "1.4.1", optional = true, features = ["v4"] }
+async-trait = "0.1.82"
 
 # systemd related dependency, only relevant on linux systems
 [target.'cfg(target_os = "linux")'.dependencies]
 sd-notify = "0.4.1"
 
 [features]
-default = ["tls"]
+default = ["tls", "dep:futures"]
 tls = ["tonic/tls"]
 jemalloc = ["dep:jemallocator"]
 viss = ["dep:axum", "dep:chrono", "dep:futures", "dep:uuid"]
