@@ -14,7 +14,7 @@
 use std::{collections::HashMap, pin::Pin};
 
 use crate::{
-    broker::{self, AuthorizedAccess, SubscriptionError},
+    broker::{self, AuthorizedAccess, SubscriptionError, ReadError},
     glob::Matcher,
     permissions::Permissions,
 };
@@ -37,20 +37,58 @@ const MAX_REQUEST_PATH_LENGTH: usize = 1000;
 
 #[tonic::async_trait]
 impl proto::val_server::Val for broker::DataBroker {
+
+    /// Get the latest (current) value of a signal
+    ///
+    /// Returns (GRPC error code):
+    ///   NOT_FOUND if the requested signal doesn't exist
+    ///   PERMISSION_DENIED if access is denied
     async fn get_value(
         &self,
-        _request: tonic::Request<proto::GetValueRequest>,
+        request: tonic::Request<proto::GetValueRequest>,
     ) -> Result<tonic::Response<proto::GetValueResponse>, tonic::Status> {
-        Err(tonic::Status::new(
-            tonic::Code::Unimplemented,
-            "Unimplemented",
-        ))
+        
+        debug!(?request);
+        let permissions = match request.extensions().get::<Permissions>() {
+            Some(permissions) => {
+                debug!(?permissions);
+                permissions.clone()
+            }
+            None => return Err(tonic::Status::unauthenticated("Unauthenticated")),
+        };
+
+        let broker = self.authorized_access(&permissions);
+        
+        let request = request.into_inner();
+
+        let signal_id = match get_signal(request.signal_id, &broker).await {
+            Ok(signal_id) => signal_id,
+            Err(err) => return Err(err),
+        };
+
+        let datapoint = match broker.get_datapoint(signal_id).await {
+            Ok(datapoint) => datapoint,
+            Err(ReadError::NotFound) => 
+                return Err(tonic::Status::new(tonic::Code::NotFound, "Path not found")),
+            Err(ReadError::PermissionDenied | ReadError::PermissionExpired) => 
+                return Err(tonic::Status::new(tonic::Code::PermissionDenied, "Permission Denied")),
+        };
+
+        // TODO - if this works - refactor so that we can reuse the lookup snippet for the methods below
+
+        Ok(tonic::Response::new(proto::GetValueResponse {
+            data_point: datapoint.into(),
+        }))
+
     }
 
     async fn get_values(
         &self,
         _request: tonic::Request<proto::GetValuesRequest>,
     ) -> Result<tonic::Response<proto::GetValuesResponse>, tonic::Status> {
+
+        // Permissions
+
         Err(tonic::Status::new(
             tonic::Code::Unimplemented,
             "Unimplemented",
@@ -749,6 +787,109 @@ mod tests {
             Err(status) => {
                 // Handle the error from the publish_value function
                 assert!(f, "Publish failed with status: {:?}", status);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_value_erik() {
+        let broker = DataBroker::default();
+        let authorized_access = broker.authorized_access(&permissions::ALLOW_ALL);
+        let f = false;
+
+        let entry_id = authorized_access
+            .add_entry(
+                "test.datapoint1".to_owned(),
+                broker::DataType::Int32,
+                broker::ChangeType::OnChange,
+                broker::EntryType::Sensor,
+                "Test datapoint 1".to_owned(),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+
+        //let timestamp = Some(std::time::SystemTime::now().into());
+        let timestamp2= std::time::SystemTime::now();
+
+        let value = proto::Value {
+            typed_value: Some(proto::value::TypedValue::Int32(-64)),
+        };
+
+        let _  = authorized_access
+                .update_entries([(
+                    entry_id,
+                    broker::EntryUpdate {
+                        path: None,
+                        datapoint: Some(broker::Datapoint {
+                            //ts: std::time::SystemTime::now(),
+                            ts: timestamp2,
+                            source_ts: None,
+                            value: broker::types::DataValue::Int32(-64),
+                        }),
+                        actuator_target: None,
+                        entry_type: None,
+                        data_type: None,
+                        description: None,
+                        allowed: None,
+                        unit: None,
+                    },
+                )])
+                .await;
+            
+
+        let request = proto::GetValueRequest {
+            signal_id: Some(proto::SignalId {
+                signal: Some(proto::signal_id::Signal::Id(entry_id)),
+                    }),
+                }
+        ;
+        
+
+        // Manually insert permissions
+        let mut get_value_request = tonic::Request::new(request);
+        get_value_request
+        .extensions_mut()
+        .insert(permissions::ALLOW_ALL.clone());
+
+
+
+        match broker.get_value(get_value_request).await {
+            Ok(response) => {
+                // Handle the successful response
+                let get_response = response.into_inner();
+                 // TODO : Which is preferred - just checking value
+                match get_response.data_point.clone().unwrap().value_state {
+                    Some(proto::datapoint::ValueState::Value(value)) =>  {
+                        assert_eq!(value.typed_value.unwrap(), proto::value::TypedValue::Int32(-64));
+                        }   
+                    Some(proto::datapoint::ValueState::Failure(_failure)) =>  {
+                        // TODO: When do we expect a failure
+                        assert!(f, "Did not expect failure");
+                            }
+                    None => {
+                            // Handle the error from the publish_value function
+                            assert!(f, "Expected a value");
+                        }
+                    }
+                // TODO : Which is preferred - compare response as such
+                assert_eq!(get_response, proto::GetValueResponse {
+
+                    data_point: {
+                        
+                        Some(proto::Datapoint {
+                            timestamp : Some(timestamp2.into()),
+                            value_state: Some(proto::datapoint::ValueState::Value(value)),
+                        })
+                    },
+
+                });
+            }
+            Err(status) => {
+                // Handle the error from the publish_value function
+                assert!(f, "Get failed with status: {:?}", status);
             }
         }
     }
