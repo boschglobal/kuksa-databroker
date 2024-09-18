@@ -25,6 +25,10 @@ service VAL {
   // Returns (GRPC error code):
   //   NOT_FOUND if the requested signal doesn't exist
   //   PERMISSION_DENIED if access is denied
+  //
+  // If the signal exist but does not have a valid value
+  // a ValueFailure datapoint will be returned.
+  //
   rpc GetValue(GetValueRequest) returns (GetValueResponse);
 
   // Get the latest values of a set of signals.
@@ -41,7 +45,7 @@ service VAL {
   // is allowed to read are included (everything else is ignored).
   //
   // Returns (GRPC error code):
-  //   NOT_FOUND if the specified root branch does not exist.
+  //   NOT_FOUND if any of the requested signals doesn't exist.
   rpc ListValues(ListValuesRequest) returns (ListValuesResponse);
 
   // Subscribe to a set of signals using string path parameters

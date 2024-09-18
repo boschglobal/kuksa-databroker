@@ -196,10 +196,7 @@ impl From<&i32> for broker::ValueFailure {
 fn from_i32(value: i32) -> proto::ValueFailure {
     // Use a match statement to convert the i32 to the corresponding enum variant
     match value {
-        1 => proto::ValueFailure::InvalidValue,
         2 => proto::ValueFailure::NotProvided,
-        3 => proto::ValueFailure::UnknownSignal,
-        4 => proto::ValueFailure::AccessDenied,
         5 => proto::ValueFailure::InternalError,
         _ => proto::ValueFailure::Unspecified,
     }
@@ -209,10 +206,7 @@ impl From<&proto::ValueFailure> for broker::ValueFailure {
     fn from(value_failure: &proto::ValueFailure) -> Self {
         match value_failure {
             proto::ValueFailure::Unspecified => broker::ValueFailure::Unspecified,
-            proto::ValueFailure::InvalidValue => broker::ValueFailure::InvalidValue,
             proto::ValueFailure::NotProvided => broker::ValueFailure::NotProvided,
-            proto::ValueFailure::UnknownSignal => broker::ValueFailure::UnknownSignal,
-            proto::ValueFailure::AccessDenied => broker::ValueFailure::AccessDenied,
             proto::ValueFailure::InternalError => broker::ValueFailure::InternalError,
         }
     }
