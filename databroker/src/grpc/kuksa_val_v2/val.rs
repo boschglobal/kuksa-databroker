@@ -37,11 +37,6 @@ const MAX_REQUEST_PATH_LENGTH: usize = 1000;
 
 #[tonic::async_trait]
 impl proto::val_server::Val for broker::DataBroker {
-    /// Get the latest (current) value of a signal
-    ///
-    /// Returns (GRPC error code):
-    ///   NOT_FOUND if the requested signal doesn't exist
-    ///   PERMISSION_DENIED if access is denied
     async fn get_value(
         &self,
         request: tonic::Request<proto::GetValueRequest>,
@@ -77,9 +72,6 @@ impl proto::val_server::Val for broker::DataBroker {
             }
         };
 
-        // TODO - if this works - refactor so that we can reuse the lookup snippet for the methods below
-        // TODO Check what happens if NOT available
-        // DataValue::NotAvailable
         Ok(tonic::Response::new(proto::GetValueResponse {
             data_point: datapoint.into(),
         }))
@@ -89,8 +81,6 @@ impl proto::val_server::Val for broker::DataBroker {
         &self,
         _request: tonic::Request<proto::GetValuesRequest>,
     ) -> Result<tonic::Response<proto::GetValuesResponse>, tonic::Status> {
-        // Permissions
-
         Err(tonic::Status::new(
             tonic::Code::Unimplemented,
             "Unimplemented",
@@ -673,7 +663,7 @@ fn convert_to_proto_stream(
         for update in item.updates {
             let update_datapoint: Option<proto::Datapoint> = match update.update.datapoint {
                 Some(datapoint) => {
-                    // For subscribe streams we do not want to return NotVailable
+                    // For subscribe streams we do not want to return NotAvailable
                     // even if the values is not available when subscribe starts
                     match datapoint.value {
                         broker::DataValue::NotAvailable => None,
