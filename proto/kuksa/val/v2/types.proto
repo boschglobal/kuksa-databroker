@@ -58,7 +58,7 @@ message SignalID {
     // Numeric identifier to the signal
     // As of today Databroker assigns arbitrary unique numbers to each registered signal
     // at startup, meaning that identifiers may change after restarting Databroker.
-    // A mechanism for static identifiers may be introduced in the future. 
+    // A mechanism for static identifiers may be introduced in the future.
     int32 id    = 1;
     // Full VSS-style path to a specific signal, like "Vehicle.Speed"
     // Wildcards and paths to branches are not supported.
@@ -159,8 +159,8 @@ message ValueRestrictionString {
   repeated string allowed_values = 1;
 }
 
-// Used to indicate status of a signal in Databroker 
-// This is given as an alternative to Value, so if there is a valid value 
+// Used to indicate status of a signal in Databroker
+// This is given as an alternative to Value, so if there is a valid value
 // ValueFailure shall not be specified.
 //
 // Scenarios where a signal does not exist or a user does not have access to a signal

@@ -744,7 +744,6 @@ mod tests {
         }
     }
 
-
     // Helper for adding an int32 signal and adding value
     async fn helper_add_int32(
         broker: &DataBroker,
@@ -847,7 +846,9 @@ mod tests {
 
         let request = proto::GetValueRequest {
             signal_id: Some(proto::SignalId {
-                signal: Some(proto::signal_id::Signal::Path("test.datapoint1".to_string())),
+                signal: Some(proto::signal_id::Signal::Path(
+                    "test.datapoint1".to_string(),
+                )),
             }),
         };
 
@@ -1008,7 +1009,9 @@ mod tests {
 
         let request = proto::GetValueRequest {
             signal_id: Some(proto::SignalId {
-                signal: Some(proto::signal_id::Signal::Path("test.datapoint1".to_string())),
+                signal: Some(proto::signal_id::Signal::Path(
+                    "test.datapoint1".to_string(),
+                )),
             }),
         };
 
@@ -1083,7 +1086,7 @@ mod tests {
             }
         }
     }
-    
+
     #[tokio::test]
     async fn test_publish_value_signal_id_not_found() {
         let broker = DataBroker::default();
