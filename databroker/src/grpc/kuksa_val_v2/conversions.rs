@@ -46,7 +46,10 @@ impl From<&proto::Datapoint> for broker::Datapoint {
 impl From<broker::Datapoint> for Option<proto::Datapoint> {
     fn from(from: broker::Datapoint) -> Self {
         match from.value {
-            broker::DataValue::NotAvailable => None,
+            broker::DataValue::NotAvailable => Some(proto::Datapoint {
+                value_state: Some(proto::datapoint::ValueState::Failure(proto::ValueFailure::NotProvided.into())),
+                timestamp: None
+            }),
             broker::DataValue::Bool(value) => Some(proto::Datapoint {
                 value_state: Some(proto::datapoint::ValueState::Value(proto::Value {
                     typed_value: Some(proto::value::TypedValue::Bool(value)),

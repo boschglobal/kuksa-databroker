@@ -672,7 +672,14 @@ fn convert_to_proto_stream(
         let mut entries: HashMap<String, proto::Datapoint> = HashMap::with_capacity(size);
         for update in item.updates {
             let update_datapoint: Option<proto::Datapoint> = match update.update.datapoint {
-                Some(datapoint) => datapoint.into(),
+                Some(datapoint) => {
+                    // For subscribe streams we do not want to return NotVailable
+                    // even if the values is not available when subscribe starts
+                    match datapoint.value {
+                        broker::DataValue::NotAvailable => None,
+                        _ => datapoint.into(),
+                    }
+                },
                 None => None,
             };
             if let Some(dp) = update_datapoint {
@@ -793,11 +800,10 @@ mod tests {
         }
     }
 
-    // Helper for adding an int32 siignal and adding value
-    async fn helper_add_int32(name: &str, value: i32, timestamp: std::time::SystemTime) -> i32 {
-        let broker = DataBroker::default();
+    // Helper for adding an int32 signal and adding value
+    async fn helper_add_int32(broker : &DataBroker, name: &str, value: i32, timestamp: std::time::SystemTime) -> i32 {
+     
         let authorized_access = broker.authorized_access(&permissions::ALLOW_ALL);
-
         let entry_id = authorized_access
             .add_entry(
                 name.to_owned(),
@@ -810,8 +816,6 @@ mod tests {
             )
             .await
             .unwrap();
-
-        
 
         let _ = authorized_access
             .update_entries([(
@@ -840,51 +844,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_value_id() {
         let broker = DataBroker::default();
-        let authorized_access = broker.authorized_access(&permissions::ALLOW_ALL);
-        let f = false;
 
-        let entry_id2 = authorized_access
-            .add_entry(
-                "test.datapoint1b".to_owned(),
-                broker::DataType::Int32,
-                broker::ChangeType::OnChange,
-                broker::EntryType::Sensor,
-                "Test datapoint 1".to_owned(),
-                None,
-                None,
-            )
-            .await
-            .unwrap();
+      
+        let timestamp = std::time::SystemTime::now();
 
-        //let timestamp = Some(std::time::SystemTime::now().into());
-        let timestamp2 = std::time::SystemTime::now();
 
-        let value = proto::Value {
-            typed_value: Some(proto::value::TypedValue::Int32(-64)),
-        };
 
-        let _ = authorized_access
-            .update_entries([(
-                entry_id2,
-                broker::EntryUpdate {
-                    path: None,
-                    datapoint: Some(broker::Datapoint {
-                        //ts: std::time::SystemTime::now(),
-                        ts: timestamp2,
-                        source_ts: None,
-                        value: broker::types::DataValue::Int32(-64),
-                    }),
-                    actuator_target: None,
-                    entry_type: None,
-                    data_type: None,
-                    description: None,
-                    allowed: None,
-                    unit: None,
-                },
-            )])
-            .await;
-
-        let entry_id = helper_add_int32("test.datapoint1", -64, timestamp2).await;
+        let entry_id = helper_add_int32(&broker, "test.datapoint1", -64, timestamp).await;
 
         let request = proto::GetValueRequest {
             signal_id: Some(proto::SignalId {
@@ -912,20 +878,24 @@ mod tests {
                     }
                     Some(proto::datapoint::ValueState::Failure(_failure)) => {
                         // TODO: When do we expect a failure
-                        assert!(f, "Did not expect failure");
+                        assert!(false, "Did not expect failure");
                     }
                     None => {
                         // Handle the error from the publish_value function
-                        assert!(f, "Expected a value");
+                        assert!(false, "Expected a value");
                     }
                 }
                 // TODO : Which is preferred - compare response as such
+
+                let value = proto::Value {
+                     typed_value: Some(proto::value::TypedValue::Int32(-64)),
+                };
                 assert_eq!(
                     get_response,
                     proto::GetValueResponse {
                         data_point: {
                             Some(proto::Datapoint {
-                                timestamp: Some(timestamp2.into()),
+                                timestamp: Some(timestamp.into()),
                                 value_state: Some(proto::datapoint::ValueState::Value(value)),
                             })
                         },
@@ -934,61 +904,95 @@ mod tests {
             }
             Err(status) => {
                 // Handle the error from the publish_value function
-                assert!(f, "Get failed with status: {:?}", status);
+                assert!(false, "Get failed with status: {:?}", status);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_value_id_no_value() {
+
+        // Define signal but do not assign any value
+
+      
+        let broker = DataBroker::default();
+        let authorized_access = broker.authorized_access(&permissions::ALLOW_ALL);
+        let entry_id = authorized_access
+            .add_entry(
+                "test.datapoint1".to_string(),
+                broker::DataType::Int32,
+                broker::ChangeType::OnChange,
+                broker::EntryType::Sensor,
+                "Some Description hat Does Not Matter".to_owned(),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+      // Now try to get it
+
+        let request = proto::GetValueRequest {
+            signal_id: Some(proto::SignalId {
+                signal: Some(proto::signal_id::Signal::Id(entry_id)),
+            }),
+        };
+
+        // Manually insert permissions
+        let mut get_value_request = tonic::Request::new(request);
+        get_value_request
+            .extensions_mut()
+            .insert(permissions::ALLOW_ALL.clone());
+
+        match broker.get_value(get_value_request).await {
+            Ok(response) => {
+                // Handle the successful response
+                let get_response = response.into_inner();
+                // TODO : Which is preferred - just checking value
+                match get_response.data_point.clone().unwrap().value_state {
+                    Some(proto::datapoint::ValueState::Value(_value)) => {
+                        assert!(false, "Did not expect success");
+                    }
+                    Some(proto::datapoint::ValueState::Failure(failure)) => {
+                        let res:i32 = proto::ValueFailure::NotProvided.into();
+                        assert_eq!(failure, res);
+                    }
+                    None => {
+                        // Handle the error from the publish_value function
+                        assert!(false, "Did not expect this error");
+                    }
+                }
+                // TODO : Which is preferred - compare response as such
+
+                assert_eq!(
+                    get_response,
+                    proto::GetValueResponse {
+                        data_point: {
+                            Some(proto::Datapoint {
+                                timestamp: None,
+                                value_state: Some(proto::datapoint::ValueState::Failure(proto::ValueFailure::NotProvided.into())),
+                            })
+                        },
+                    }
+                );
+            }
+            Err(status) => {
+                // Handle the error from the publish_value function
+                assert!(false, "Get failed with status: {:?}", status);
             }
         }
     }
 
 
     #[tokio::test]
-    // Later to be removed
-    async fn test_get_value_id_obsolete() {
+    async fn test_get_value_id_not_defined() {
+
+
         let broker = DataBroker::default();
-        let authorized_access = broker.authorized_access(&permissions::ALLOW_ALL);
-        let f = false;
+        // Just use some arbitrary number
+        let entry_id: i32 = 12345;
 
-        let entry_id2 = authorized_access
-            .add_entry(
-                "test.datapoint1b".to_owned(),
-                broker::DataType::Int32,
-                broker::ChangeType::OnChange,
-                broker::EntryType::Sensor,
-                "Test datapoint 1".to_owned(),
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-
-        //let timestamp = Some(std::time::SystemTime::now().into());
-        let timestamp2 = std::time::SystemTime::now();
-
-        let value = proto::Value {
-            typed_value: Some(proto::value::TypedValue::Int32(-64)),
-        };
-
-        let _ = authorized_access
-            .update_entries([(
-                entry_id2,
-                broker::EntryUpdate {
-                    path: None,
-                    datapoint: Some(broker::Datapoint {
-                        //ts: std::time::SystemTime::now(),
-                        ts: timestamp2,
-                        source_ts: None,
-                        value: broker::types::DataValue::Int32(-64),
-                    }),
-                    actuator_target: None,
-                    entry_type: None,
-                    data_type: None,
-                    description: None,
-                    allowed: None,
-                    unit: None,
-                },
-            )])
-            .await;
-
-        let entry_id = helper_add_int32("test.datapoint1", -64, timestamp2).await;
+      // Now try to get it
 
         let request = proto::GetValueRequest {
             signal_id: Some(proto::SignalId {
@@ -1003,42 +1007,11 @@ mod tests {
             .insert(permissions::ALLOW_ALL.clone());
 
         match broker.get_value(get_value_request).await {
-            Ok(response) => {
-                // Handle the successful response
-                let get_response = response.into_inner();
-                // TODO : Which is preferred - just checking value
-                match get_response.data_point.clone().unwrap().value_state {
-                    Some(proto::datapoint::ValueState::Value(value)) => {
-                        assert_eq!(
-                            value.typed_value.unwrap(),
-                            proto::value::TypedValue::Int32(-64)
-                        );
-                    }
-                    Some(proto::datapoint::ValueState::Failure(_failure)) => {
-                        // TODO: When do we expect a failure
-                        assert!(f, "Did not expect failure");
-                    }
-                    None => {
-                        // Handle the error from the publish_value function
-                        assert!(f, "Expected a value");
-                    }
-                }
-                // TODO : Which is preferred - compare response as such
-                assert_eq!(
-                    get_response,
-                    proto::GetValueResponse {
-                        data_point: {
-                            Some(proto::Datapoint {
-                                timestamp: Some(timestamp2.into()),
-                                value_state: Some(proto::datapoint::ValueState::Value(value)),
-                            })
-                        },
-                    }
-                );
+            Ok(_response) => {
+                assert!(false, "Did not expect success");
             }
             Err(status) => {
-                // Handle the error from the publish_value function
-                assert!(f, "Get failed with status: {:?}", status);
+                assert_eq!(status.code(), tonic::Code::NotFound)
             }
         }
     }
@@ -1129,6 +1102,8 @@ mod tests {
             .extensions_mut()
             .insert(permissions::ALLOW_ALL.clone());
 
+        // Note: We subscribe before the signal test.datapoint1 has any value
+        // but we do not expect to get a NOT_AVAILABLE message back!
         let result = tokio::task::block_in_place(|| {
             // Blocking operation here
             // Since broker.subscribe is async, you need to run it in an executor

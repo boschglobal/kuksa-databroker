@@ -52,6 +52,12 @@ service VAL {
   // Returns (GRPC error code):
   //   NOT_FOUND if any of the signals are non-existant.
   //   PERMISSION_DENIED if access is denied for any of the signals.
+  //
+  // When subscribing the Broker shall immediately return the value for all
+  // subscribed entries. If no value is available when subscribing a value shall be returned
+  // first when a value is available.
+  // TODO - Verify logic above?
+  // If we have the availability to "delete" values then getting a NotAvailable message sort of makes sense
   rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
 
   // Subscribe to a set of signals using i32 id parameters
