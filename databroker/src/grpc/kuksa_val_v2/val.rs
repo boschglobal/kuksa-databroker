@@ -786,7 +786,7 @@ mod tests {
             )])
             .await;
 
-        return entry_id;
+        entry_id
     }
 
     #[tokio::test]
@@ -830,8 +830,7 @@ mod tests {
                 );
             }
             Err(status) => {
-                // Handle the error from the publish_value function
-                assert!(false, "Get failed with status: {:?}", status);
+                panic!("Get failed with status: {:?}", status);
             }
         }
     }
@@ -879,8 +878,7 @@ mod tests {
                 );
             }
             Err(status) => {
-                // Handle the error from the publish_value function
-                assert!(false, "Get failed with status: {:?}", status);
+                panic!("Get failed with status: {:?}", status);
             }
         }
     }
@@ -904,7 +902,7 @@ mod tests {
 
         match broker.get_value(get_value_request).await {
             Ok(_response) => {
-                assert!(false, "Did not expect success");
+                panic!("Did not expect success");
             }
             Err(status) => {
                 assert_eq!(status.code(), tonic::Code::Unauthenticated)
@@ -966,7 +964,7 @@ mod tests {
             }
             Err(status) => {
                 // Handle the error from the publish_value function
-                assert!(false, "Get failed with status: {:?}", status);
+                panic!("Get failed with status: {:?}", status);
             }
         }
     }
@@ -993,7 +991,7 @@ mod tests {
 
         match broker.get_value(get_value_request).await {
             Ok(_response) => {
-                assert!(false, "Did not expect success");
+                panic!("Did not expect success");
             }
             Err(status) => {
                 assert_eq!(status.code(), tonic::Code::NotFound)
@@ -1023,7 +1021,7 @@ mod tests {
 
         match broker.get_value(get_value_request).await {
             Ok(_response) => {
-                assert!(false, "Did not expect success");
+                panic!("Did not expect success");
             }
             Err(status) => {
                 assert_eq!(status.code(), tonic::Code::NotFound)
