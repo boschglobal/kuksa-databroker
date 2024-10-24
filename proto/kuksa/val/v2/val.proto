@@ -98,7 +98,6 @@ service VAL {
   //   NOT_FOUND if any of the signals are non-existant.
   //   PERMISSION_DENIED
   //       - if access is denied for any of the signals.
-  //       - if the signal is already provided by another provider.
   //   INVALID_ARGUMENT
   //       - if the data type used in the request does not match
   //            the data type of the addressed signal
@@ -112,7 +111,33 @@ service VAL {
   //
   // The open stream is used for request / response type communication between the
   // provider and server (where the initiator of a request can vary).
-  // Errors are communicated as messages in the stream.
+  // 
+  // Errors:
+  //    - Provider sends ProvideActuationRequest -> Databroker returns ProvideActuationResponse
+  //        Returns (GRPC error code) and closes the stream call (strict case).
+  //          NOT_FOUND if any of the signals are non-existant.
+  //          PERMISSION_DENIED
+  //              - if access is denied for any of the signals.
+  //          INVALID_ARGUMENT
+  //              - if the data type used in the request does not match
+  //                   the data type of the addressed signal
+  //              - if the published value is not accepted,
+  //                   e.g. if sending an unsupported enum value
+  // 
+  //    - Provider sends PublishValuesRequest -> Databroker returns PublishValuesResponse
+  //        GRPC errors are returned as messages in the stream 
+  //        response with the signal id `map<int32, Error> status = 2;` (permissive case)
+  //          NOT_FOUND if a signal is non-existant.
+  //          PERMISSION_DENIED
+  //              - if access is denied for a signal.
+  //          INVALID_ARGUMENT
+  //              - if the data type used in the request does not match
+  //                   the data type of the addressed signal
+  //              - if the published value is not accepted,
+  //                   e.g. if sending an unsupported enum value
+  //
+  //    - Provider returns BatchActuateStreamResponse <- Databroker sends BatchActuateStreamRequest
+  //        No error definition, a BatchActuateStreamResponse is expected from provider.
   rpc OpenProviderStream(stream OpenProviderStreamRequest) returns (stream OpenProviderStreamResponse);
 
   // Get server information
