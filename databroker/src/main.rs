@@ -15,6 +15,10 @@
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
+use std::io;
+use std::os::unix::fs::FileTypeExt;
+use std::path::Path;
+
 use databroker::authorization::Authorization;
 use databroker::broker::RegistrationError;
 
@@ -169,6 +173,15 @@ async fn read_metadata_file<'a, 'b>(
     Ok(())
 }
 
+fn unlink_unix_domain_socket(path: impl AsRef<Path>) -> Result<(), io::Error> {
+    if let Ok(metadata) = std::fs::metadata(&path) {
+        if metadata.file_type().is_socket() {
+            std::fs::remove_file(&path)?;
+        }
+    };
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or_default();
@@ -216,6 +229,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .env("KUKSA_DATABROKER_PORT")
                 .value_parser(clap::value_parser!(u16))
                 .default_value("55555"),
+        )
+        .arg(
+            Arg::new("unix-socket")
+                .display_order(3)
+                .long("unix-socket")
+                .help("Listen on unix socket, e.g. /tmp/kuksa/databroker.sock")
+                .action(ArgAction::Set)
+                .value_name("PATH")
+                .required(false)
+                .env("KUKSA_DATABROKER_UNIX_SOCKET"),
         )
         .arg(
             Arg::new("vss-file")
@@ -451,7 +474,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         apis.push(grpc::server::Api::SdvDatabrokerV1);
     }
 
-    grpc::server::serve(
+    let unix_socket = args.get_one::<String>("unix-socket").cloned();
+    if let Some(path) = unix_socket {
+        unlink_unix_domain_socket(&path)?;
+        std::fs::create_dir_all(Path::new(&path).parent().unwrap())?;
+        let broker = broker.clone();
+        let authorization = authorization.clone();
+        let apis = apis.clone();
+        tokio::spawn(async move {
+            if let Err(err) =
+                grpc::server::serve_uds(&path, broker, &apis, authorization, shutdown_handler())
+                    .await
+            {
+                error!("{err}");
+            }
+
+            info!("Unlinking unix domain socket at {}", path);
+            unlink_unix_domain_socket(path)
+                .unwrap_or_else(|_| error!("Failed to unlink unix domain socket"));
+        });
+    }
+
+    /* On Linux systems try to notify daemon readiness to systemd.
+     * This function determines whether the a system is using systemd
+     * or not, so it is safe to use on non-systemd systems as well.
+     */
+    #[cfg(target_os = "linux")]
+    {
+        match sd_notify::booted() {
+            Ok(true) => {
+                info!("Notifying systemd that the service is ready");
+                sd_notify::notify(false, &[sd_notify::NotifyState::Ready])?;
+            }
+            _ => {
+                debug!("System is not using systemd, will not try to notify");
+            }
+        }
+    }
+
+    grpc::server::serve_tcp(
         addr,
         broker,
         #[cfg(feature = "tls")]
