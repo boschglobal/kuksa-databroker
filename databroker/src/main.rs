@@ -36,9 +36,10 @@ use tracing::{debug, error, info};
 
 use clap::{Arg, ArgAction, Command};
 
+use crate::zenoh_server::server::serve;
 #[cfg(feature = "viss")]
 use databroker::viss;
-use databroker::{broker, grpc, permissions, vss};
+use databroker::{broker, grpc, permissions, vss, zenoh_server};
 
 async fn shutdown_handler() {
     let mut sigint =
@@ -570,6 +571,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+
+        let broker2 = broker.clone();
+        let _task = tokio::spawn(async move {
+            if let Err(err) = serve(broker2).await {
+                error!("{err}");
+            }
+        });
 
         grpc::server::serve_tcp(
             addr,

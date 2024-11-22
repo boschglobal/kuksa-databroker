@@ -19,6 +19,7 @@ pub mod permissions;
 pub mod query;
 pub mod types;
 pub mod vss;
+pub mod zenoh_server;
 
 #[cfg(feature = "viss")]
 pub mod viss;
