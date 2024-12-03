@@ -76,35 +76,50 @@ pub async fn serve(broker: broker::DataBroker) -> Result<(), Box<dyn std::error:
 
     let _ = config.insert_json5("mode", &json!(WhatAmI::Router.to_str()).to_string());
 
-    let endpoint = vec![format!("udp/127.0.0.1:{}", 17447)];
+    let endpoint = vec![format!("tcp/127.0.0.1:{}", 17447)];
 
     let _ = config.insert_json5("listen/endpoints", &json!(endpoint).to_string());
 
     let session = zenoh::open(config).await.unwrap();
 
-    // Specify the topic to subscribe to
-    let topic = "vehicle";
-    let pub_key = KeyExpr::try_from(topic).unwrap();
+    let mut tasks = Vec::new();
 
-    println!("Subscribing to topic: {}", topic);
+    for i in 1..=50 {
+        // Specify the topic to subscribe to
+        let topic = i.to_string();
+        let pub_key = KeyExpr::try_from(topic.clone()).unwrap();
 
-    let subscriber = session.declare_subscriber(&pub_key).await.unwrap();
+        let subscriber = session.declare_subscriber(&pub_key).await.unwrap();
 
-    // Process messages using the stream
-    let broker = broker.authorized_access(&permissions::ALLOW_ALL);
-    while let Ok(payload) = subscriber.recv_async().await {
-        let request =
-            proto::OpenProviderStreamRequest::decode(&*payload.payload().to_bytes()).unwrap();
+        println!("Subscribing to topic: {}", topic);
 
-        match request.action {
-            Some(ProvideActuationRequest(_)) => {}
-            Some(PublishValuesRequest(publish_values_request)) => {
-                //Ignore response for now
-                let _response = publish_values(&broker, &publish_values_request).await;
+        let local_broker = broker.clone();
+        // Process messages using the stream
+
+        let task = tokio::spawn(async move {
+            let local_broker = local_broker.authorized_access(&permissions::ALLOW_ALL);
+            while let Ok(payload) = subscriber.recv_async().await {
+                let request =
+                    proto::OpenProviderStreamRequest::decode(&*payload.payload().to_bytes())
+                        .unwrap();
+
+                match request.action {
+                    Some(ProvideActuationRequest(_)) => {}
+                    Some(PublishValuesRequest(publish_values_request)) => {
+                        //Ignore response for now
+                        let _response =
+                            publish_values(&local_broker, &publish_values_request).await;
+                    }
+                    Some(BatchActuateStreamResponse(_)) => {}
+                    None => {}
+                }
             }
-            Some(BatchActuateStreamResponse(_)) => {}
-            None => {}
-        }
+        });
+        tasks.push(task);
+    }
+
+    for task in tasks {
+        task.await.unwrap();
     }
     Ok(())
 }
