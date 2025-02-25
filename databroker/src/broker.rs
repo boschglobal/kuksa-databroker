@@ -202,7 +202,7 @@ pub struct QuerySubscription {
 
 pub struct ChangeSubscription {
     entries: HashMap<i32, HashSet<Field>>,
-    sender: broadcast::Sender<EntryUpdates>,
+    sender: async_channel::Sender<EntryUpdates>,
     permissions: Permissions,
 }
 
@@ -902,7 +902,7 @@ impl ChangeSubscription {
                     if notifications.updates.is_empty() {
                         Ok(())
                     } else {
-                        match self.sender.send(notifications) {
+                        match self.sender.send(notifications).await {
                             Ok(_number_of_receivers) => Ok(()),
                             Err(err) => {
                                 debug!("Send error for entry{}: ", err);
@@ -946,7 +946,7 @@ impl ChangeSubscription {
                     }
                     notifications
                 };
-                match self.sender.send(notifications) {
+                match self.sender.send(notifications).await {
                     Ok(_number_of_receivers) => Ok(()),
                     Err(err) => {
                         debug!("Send error for entry{}: ", err);
@@ -1647,7 +1647,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             1
         };
 
-        let (sender, receiver) = broadcast::channel(channel_capacity);
+        let (sender, receiver) = async_channel::bounded(channel_capacity);
         let subscription = ChangeSubscription {
             entries: valid_entries,
             sender,
@@ -1668,13 +1668,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             .await
             .add_change_subscription(subscription);
 
-        let stream = BroadcastStream::new(receiver).filter_map(|result| match result {
-            Ok(message) => Some(message),
-            Err(err) => {
-                debug!("Lagged entries: {}", err);
-                None
-            }
-        });
+        let stream = Box::pin(receiver);
         Ok(stream)
     }
 
