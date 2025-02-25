@@ -157,8 +157,8 @@ where
 
     let incoming = TcpListenerStream::new(listener);
     let mut server = Server::builder()
-        .http2_keepalive_interval(Some(Duration::from_secs(10)))
-        .http2_keepalive_timeout(Some(Duration::from_secs(20)));
+        .http2_keepalive_interval(None)
+        .http2_keepalive_timeout(None);
 
     #[cfg(feature = "tls")]
     match server_tls {

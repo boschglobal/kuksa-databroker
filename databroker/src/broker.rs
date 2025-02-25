@@ -17,6 +17,7 @@ pub use crate::types;
 use crate::query;
 pub use crate::types::{ChangeType, DataType, DataValue, EntryType};
 
+use futures::SinkExt;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::ReceiverStream;
@@ -202,7 +203,7 @@ pub struct QuerySubscription {
 
 pub struct ChangeSubscription {
     entries: HashMap<i32, HashSet<Field>>,
-    sender: broadcast::Sender<EntryUpdates>,
+    sender: futures::channel::mpsc::Sender<EntryUpdates>,
     permissions: Permissions,
 }
 
@@ -754,7 +755,7 @@ impl Subscriptions {
     }
 
     pub async fn notify(
-        &self,
+        &mut self,
         changed: Option<&HashMap<i32, HashSet<Field>>>,
         db: &Database,
     ) -> Result<Option<HashMap<String, ()>>, NotificationError> {
@@ -774,7 +775,7 @@ impl Subscriptions {
             }
         }
 
-        for sub in &self.change_subscriptions {
+        for sub in &mut self.change_subscriptions {
             match sub.notify(changed, db).await {
                 Ok(_) => {}
                 Err(err) => error = Some(err),
@@ -809,7 +810,7 @@ impl Subscriptions {
             }
         });
         self.change_subscriptions.retain(|sub| {
-            if sub.sender.receiver_count() == 0 {
+            if sub.sender.is_closed() {
                 info!("Subscriber gone: removing subscription");
                 false
             } else if sub.permissions.is_expired() {
@@ -836,7 +837,7 @@ impl Subscriptions {
 
 impl ChangeSubscription {
     async fn notify(
-        &self,
+        &mut self,
         changed: Option<&HashMap<i32, HashSet<Field>>>,
         db: &Database,
     ) -> Result<(), NotificationError> {
@@ -902,7 +903,7 @@ impl ChangeSubscription {
                     if notifications.updates.is_empty() {
                         Ok(())
                     } else {
-                        match self.sender.send(notifications) {
+                        match self.sender.send(notifications).await {
                             Ok(_number_of_receivers) => Ok(()),
                             Err(err) => {
                                 debug!("Send error for entry{}: ", err);
@@ -946,7 +947,7 @@ impl ChangeSubscription {
                     }
                     notifications
                 };
-                match self.sender.send(notifications) {
+                match self.sender.send(notifications).await {
                     Ok(_number_of_receivers) => Ok(()),
                     Err(err) => {
                         debug!("Send error for entry{}: ", err);
@@ -1594,7 +1595,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             match self
                 .broker
                 .subscriptions
-                .read()
+                .write()
                 .await
                 .notify(Some(&changed), &db)
                 .await
@@ -1647,8 +1648,8 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             1
         };
 
-        let (sender, receiver) = broadcast::channel(channel_capacity);
-        let subscription = ChangeSubscription {
+        let (sender, receiver) = futures::channel::mpsc::channel(channel_capacity);
+        let mut subscription = ChangeSubscription {
             entries: valid_entries,
             sender,
             permissions: self.permissions.clone(),
@@ -1668,13 +1669,7 @@ impl<'a, 'b> AuthorizedAccess<'a, 'b> {
             .await
             .add_change_subscription(subscription);
 
-        let stream = BroadcastStream::new(receiver).filter_map(|result| match result {
-            Ok(message) => Some(message),
-            Err(err) => {
-                debug!("Lagged entries: {}", err);
-                None
-            }
-        });
+        let stream = Box::pin(receiver);
         Ok(stream)
     }
 
