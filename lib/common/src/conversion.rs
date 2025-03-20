@@ -11,7 +11,6 @@
 * SPDX-License-Identifier: Apache-2.0
 ********************************************************************************/
 
-use crate::types::MetadataTypeV2;
 use crate::types::{
     ActuateResponseSDVTypeV1, ActuateResponseTypeV1, ActuateResponseTypeV2, GetResponseSDVTypeV1,
     GetResponseTypeV1, MetadataResponseSDVTypeV1, MetadataResponseTypeV1, MetadataResponseTypeV2,
@@ -27,7 +26,7 @@ use std::collections::HashMap;
 
 // Idea: in the future we could use databroker internal datapoint structure and define it here then the conversion from databroker can be reused
 
-fn find_common_root(paths: Vec<String>) -> String {
+fn find_common_root(paths: Vec<&str>) -> String {
     if paths.is_empty() {
         return String::new();
     }
@@ -73,14 +72,14 @@ impl ConvertToSDV<SensorUpdateSDVTypeV1> for SensorUpdateTypeV1 {
     }
 }
 
-impl ConvertToSDV<PathSDVTypeV1> for PathTypeV1 {
+impl<'a> ConvertToSDV<PathSDVTypeV1> for PathTypeV1<'a> {
     fn convert_to_sdv(self) -> PathSDVTypeV1 {
-        self
+        self.iter().map(|s| s.to_string()).collect()
     }
 }
 
-impl ConvertToSDV<SubscribeSDVTypeV1> for SubscribeTypeV1 {
-    fn convert_to_sdv(self) -> SubscribeSDVTypeV1 {
+impl<'a> ConvertToSDV<SubscribeSDVTypeV1<'a>> for SubscribeTypeV1<'a> {
+    fn convert_to_sdv(self) -> SubscribeSDVTypeV1<'a> {
         unimplemented!("SQL queries not supported anymore")
     }
 }
@@ -233,14 +232,14 @@ impl ConvertToV1<SensorUpdateTypeV1> for SensorUpdateSDVTypeV1 {
     }
 }
 
-impl ConvertToV1<PathTypeV1> for PathSDVTypeV1 {
-    fn convert_to_v1(self) -> PathTypeV1 {
-        self
+impl<'a> ConvertToV1<PathTypeV1<'a>> for PathSDVTypeV1 {
+    fn convert_to_v1(self) -> PathTypeV1<'a> {
+        unimplemented!("Incompatible types because of references used in ClientTraitV1.")
     }
 }
 
-impl ConvertToV1<SubscribeTypeV1> for SubscribeSDVTypeV1 {
-    fn convert_to_v1(self) -> SubscribeTypeV1 {
+impl<'a> ConvertToV1<SubscribeTypeV1<'a>> for SubscribeSDVTypeV1<'a> {
+    fn convert_to_v1(self) -> SubscribeTypeV1<'a> {
         unimplemented!("SQL queries not supported anymore")
     }
 }
@@ -915,16 +914,17 @@ impl ConvertToV2<SensorUpdateTypeV2> for protoV1::Datapoint {
 }
 
 // Since SubscribeTypeV2 is PathsTypeV2 we do not need to have a separate conversion for that one
-impl ConvertToV2<PathsTypeV2> for PathTypeV1 {
-    fn convert_to_v2(self) -> PathsTypeV2 {
+impl<'a> ConvertToV2<PathsTypeV2<'a>> for PathTypeV1<'a> {
+    fn convert_to_v2(self) -> PathsTypeV2<'a> {
         self
     }
 }
 
-impl ConvertToV2<MetadataTypeV2> for PathTypeV1 {
-    fn convert_to_v2(self) -> MetadataTypeV2 {
+impl<'a> ConvertToV2<(String, String)> for PathTypeV1<'a> {
+    fn convert_to_v2<'b>(self) -> (String, String) {
         // in the future find_common_root() could also provide filters, like everything or something like "branch1.*, branch2.*"
-        (find_common_root(self), "*".to_string())
+        let root = find_common_root(self);
+        (root, "*".to_string())
     }
 }
 

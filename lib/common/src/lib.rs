@@ -45,7 +45,7 @@ pub enum ClientError {
 }
 
 #[async_trait]
-pub trait SDVClientTraitV1 {
+pub trait SDVClientTraitV1<'a> {
     type SensorUpdateType;
     type UpdateActuationType;
     type PathType;
@@ -93,7 +93,7 @@ pub trait SDVClientTraitV1 {
 }
 
 #[async_trait]
-pub trait ClientTraitV1 {
+pub trait ClientTraitV1<'a> {
     type SensorUpdateType;
     type UpdateActuationType;
     type PathType;
@@ -157,7 +157,7 @@ pub trait ClientTraitV1 {
 }
 
 #[async_trait]
-pub trait ClientTraitV2 {
+pub trait ClientTraitV2<'a> {
     type SensorUpdateType;
     type UpdateActuationType;
     type MultipleUpdateActuationType;

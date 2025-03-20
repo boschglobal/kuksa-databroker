@@ -31,11 +31,13 @@ impl SDVClient {
 }
 
 #[async_trait]
-impl SDVClientTraitV1 for SDVClient {
+impl<'a> SDVClientTraitV1<'a> for SDVClient 
+where 'a: 'static
+{
     type SensorUpdateType = kuksa_common::types::SensorUpdateSDVTypeV1;
     type UpdateActuationType = kuksa_common::types::UpdateActuationSDVTypeV1;
     type PathType = kuksa_common::types::PathSDVTypeV1;
-    type SubscribeType = kuksa_common::types::SubscribeSDVTypeV1;
+    type SubscribeType = kuksa_common::types::SubscribeSDVTypeV1<'a>;
     type PublishResponseType = kuksa_common::types::PublishResponseSDVTypeV1;
     type GetResponseType = kuksa_common::types::GetResponseSDVTypeV1;
     type SubscribeResponseType = kuksa_common::types::SubscribeResponseSDVTypeV1;
@@ -79,7 +81,7 @@ impl SDVClientTraitV1 for SDVClient {
             self.basic_client.get_channel().await?.clone(),
             self.basic_client.get_auth_interceptor(),
         );
-        let args = tonic::Request::new(proto::v1::GetDatapointsRequest { datapoints: paths });
+        let args = tonic::Request::new(proto::v1::GetDatapointsRequest { datapoints: paths.iter().map(|s| s.to_string()).collect() });
         match client.get_datapoints(args).await {
             Ok(response) => {
                 let message = response.into_inner();
@@ -97,7 +99,7 @@ impl SDVClientTraitV1 for SDVClient {
             self.basic_client.get_channel().await?.clone(),
             self.basic_client.get_auth_interceptor(),
         );
-        let args = tonic::Request::new(proto::v1::SubscribeRequest { query: paths });
+        let args = tonic::Request::new(proto::v1::SubscribeRequest { query: paths.to_string() });
 
         match client.subscribe(args).await {
             Ok(response) => Ok(response.into_inner()),
@@ -129,7 +131,7 @@ impl SDVClientTraitV1 for SDVClient {
             self.basic_client.get_auth_interceptor(),
         );
         // Empty vec == all property metadata
-        let args = tonic::Request::new(proto::v1::GetMetadataRequest { names: paths });
+        let args = tonic::Request::new(proto::v1::GetMetadataRequest { names: paths.iter().map(|s| s.to_string()).collect() });
         match client.get_metadata(args).await {
             Ok(response) => {
                 let message = response.into_inner();

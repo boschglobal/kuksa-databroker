@@ -54,12 +54,12 @@ impl KuksaClientV2 {
     ///
     pub async fn resolve_ids_for_paths(
         &mut self,
-        vss_paths: Vec<&str>,
+        vss_paths: Vec<&'static str>,
     ) -> Result<HashMap<String, i32>, ClientError> {
         let mut hash_map = HashMap::new();
 
         for path in vss_paths {
-            let vec = self.list_metadata(path, "*").await?;
+            let vec = self.list_metadata((path, "*")).await?;
             let metadata = vec.first().unwrap();
 
             hash_map.insert(metadata.path.clone(), metadata.id);
@@ -85,11 +85,13 @@ impl KuksaClientV2 {
 }
 
 #[async_trait]
-impl kuksa_common::ClientTraitV1 for KuksaClientV2 {
+impl<'a> kuksa_common::ClientTraitV1<'a> for KuksaClientV2 
+where 'a: 'static
+{
     type SensorUpdateType = kuksa_common::types::SensorUpdateTypeV1;
     type UpdateActuationType = kuksa_common::types::UpdateActuationTypeV1;
-    type PathType = kuksa_common::types::PathTypeV1;
-    type SubscribeType = kuksa_common::types::SubscribeTypeV1;
+    type PathType = kuksa_common::types::PathTypeV1<'a>;
+    type SubscribeType = kuksa_common::types::SubscribeTypeV1<'a>;
     type PublishResponseType = kuksa_common::types::PublishResponseTypeV1;
     type GetResponseType = kuksa_common::types::GetResponseTypeV1;
     type SubscribeResponseType = kuksa_common::types::SubscribeResponseTypeV1;
@@ -102,7 +104,7 @@ impl kuksa_common::ClientTraitV1 for KuksaClientV2 {
         datapoints: Self::SensorUpdateType,
     ) -> Result<Self::PublishResponseType, ClientError> {
         for (signal_path, datapoint) in datapoints{
-            self.publish_value(signal_path, datapoint.convert_to_v2()).await?
+            self.publish_value(signal_path.as_str(), datapoint.convert_to_v2()).await?
         }
         Ok(())
     }
@@ -159,19 +161,22 @@ impl kuksa_common::ClientTraitV1 for KuksaClientV2 {
         &mut self,
         paths: Self::PathType,
     ) -> Result<Self::MetadataResponseType, ClientError> {
-        Ok(self.list_metadata(paths.convert_to_v2()).await.unwrap().convert_to_v1())
+        let converted_tuple: (String, String) = paths.convert_to_v2().clone();
+        Ok(self.list_metadata((&converted_tuple.0, &converted_tuple.1)).await.unwrap().convert_to_v1())
     }
 }
 
 #[async_trait]
-impl ClientTraitV2 for KuksaClientV2{
+impl<'b> ClientTraitV2<'b> for KuksaClientV2
+where 'b: 'static
+{
     type SensorUpdateType = kuksa_common::types::SensorUpdateTypeV2;
     type UpdateActuationType = kuksa_common::types::UpdateActuationTypeV2;
     type MultipleUpdateActuationType = kuksa_common::types::MultipleUpdateActuationTypeV2;
-    type PathType = kuksa_common::types::PathTypeV2;
-    type PathsType = kuksa_common::types::PathsTypeV2;
+    type PathType = kuksa_common::types::PathTypeV2<'b>;
+    type PathsType = kuksa_common::types::PathsTypeV2<'b>;
     type IdsType = kuksa_common::types::IdsTypeV2;
-    type SubscribeType = kuksa_common::types::SubscribeTypeV2;
+    type SubscribeType = kuksa_common::types::SubscribeTypeV2<'b>;
     type SubscribeByIdType = kuksa_common::types::SubscribeByIdTypeV2;
     type PublishResponseType = kuksa_common::types::PublishResponseTypeV2;
     type GetResponseType = kuksa_common::types::GetResponseTypeV2;
@@ -181,7 +186,7 @@ impl ClientTraitV2 for KuksaClientV2{
     type ProvideResponseType = kuksa_common::types::ProvideResponseTypeV2;
     type ActuateResponseType = kuksa_common::types::ActuateResponseTypeV2;
     type OpenProviderStreamResponseType = kuksa_common::types::OpenProviderStreamResponseTypeV2;
-    type MetadataType = kuksa_common::types::MetadataTypeV2;
+    type MetadataType = kuksa_common::types::MetadataTypeV2<'b>;
     type MetadataResponseType = kuksa_common::types::MetadataResponseTypeV2;
     type ServerInfoType = kuksa_common::types::ServerInfoTypeV2;
 
@@ -204,7 +209,7 @@ impl ClientTraitV2 for KuksaClientV2{
 
         let get_value_request = GetValueRequest {
             signal_id: Some(SignalId {
-                signal: Some(Path(path)),
+                signal: Some(Path(path.to_string())),
             }),
         };
 
@@ -288,7 +293,7 @@ impl ClientTraitV2 for KuksaClientV2{
 
         let publish_value_request = PublishValueRequest {
             signal_id: Some(SignalId {
-                signal: Some(Path(signal_path)),
+                signal: Some(Path(signal_path.to_string())),
             }),
             data_point: Some(Datapoint {
                 timestamp: Some(Timestamp { seconds, nanos }),
@@ -326,7 +331,7 @@ impl ClientTraitV2 for KuksaClientV2{
 
         let actuate_request = ActuateRequest {
             signal_id: Some(SignalId {
-                signal: Some(Path(signal_path)),
+                signal: Some(Path(signal_path.to_string())),
             }),
             value: Some(value),
         };
@@ -403,7 +408,7 @@ impl ClientTraitV2 for KuksaClientV2{
         );
 
         let subscribe_request = SubscribeRequest {
-            signal_paths,
+            signal_paths: signal_paths.iter().map(|s| s.to_string()).collect(),
             buffer_size: buffer_size.unwrap_or(0),
         };
 
@@ -442,7 +447,7 @@ impl ClientTraitV2 for KuksaClientV2{
         );
 
         let subscribe_by_id_request = SubscribeByIdRequest {
-            signal_ids,
+            signal_ids: signal_ids,
             buffer_size: buffer_size.unwrap_or(0),
         };
 
@@ -521,8 +526,8 @@ impl ClientTraitV2 for KuksaClientV2{
         );
 
         let list_metadata_request = ListMetadataRequest {
-            root: tuple.0, 
-            filter: tuple.1
+            root: tuple.0.to_string(), 
+            filter: tuple.1.to_string()
         };
 
         match client.list_metadata(list_metadata_request).await {

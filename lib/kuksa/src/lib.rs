@@ -109,11 +109,13 @@ impl KuksaClient {
 }
 
 #[async_trait]
-impl kuksa_common::SDVClientTraitV1 for KuksaClient {
+impl<'a> kuksa_common::SDVClientTraitV1<'a> for KuksaClient
+where 'a: 'static
+{
     type SensorUpdateType = kuksa_common::types::SensorUpdateSDVTypeV1;
     type UpdateActuationType = kuksa_common::types::UpdateActuationSDVTypeV1;
     type PathType = kuksa_common::types::PathSDVTypeV1;
-    type SubscribeType = kuksa_common::types::SubscribeSDVTypeV1;
+    type SubscribeType = kuksa_common::types::SubscribeSDVTypeV1<'a>;
     type PublishResponseType = kuksa_common::types::PublishResponseSDVTypeV1;
     type GetResponseType = kuksa_common::types::GetResponseSDVTypeV1;
     type SubscribeResponseType = kuksa_common::types::SubscribeResponseSDVTypeV1;
@@ -176,11 +178,18 @@ impl kuksa_common::SDVClientTraitV1 for KuksaClient {
     }
 }
 
+
+// Lifetimes introduced here due to &str types 
+// only 'a is not enough because 'a would live not as long as the async_trait lifetime
+// thats because async_trait encapsulates the async fn's in a BoxFuture
+// we make 'a: 'static which ensures it lives for the whole duration of the program so that we do not run into lifetime issues
 #[async_trait]
-impl kuksa_common::ClientTraitV1 for KuksaClient {
+impl<'a> kuksa_common::ClientTraitV1<'a> for KuksaClient 
+where 'a: 'static 
+{
     type SensorUpdateType = kuksa_common::types::SensorUpdateTypeV1;
     type UpdateActuationType = kuksa_common::types::UpdateActuationTypeV1;
-    type PathType = kuksa_common::types::PathTypeV1;
+    type PathType = kuksa_common::types::PathTypeV1<'a>;
     type SubscribeType = Self::PathType;
     type PublishResponseType = kuksa_common::types::PublishResponseTypeV1;
     type GetResponseType = kuksa_common::types::GetResponseTypeV1;
@@ -225,10 +234,10 @@ impl kuksa_common::ClientTraitV1 for KuksaClient {
     ) -> Result<Self::GetResponseType, ClientError> {
         let mut get_result = Vec::new();
 
-        for path in paths {
+        for path in paths.iter() {
             match self
                 .get(
-                    &path,
+                    &path.to_string(),
                     proto::v1::View::CurrentValue,
                     vec![
                         proto::v1::Field::Value.into(),
@@ -241,6 +250,7 @@ impl kuksa_common::ClientTraitV1 for KuksaClient {
                 Err(err) => return Err(err),
             }
         }
+        
 
         Ok(get_result)
     }
@@ -276,13 +286,13 @@ impl kuksa_common::ClientTraitV1 for KuksaClient {
     ) -> Result<Self::GetResponseType, ClientError> {
         let mut get_result = Vec::new();
 
-        for path in paths {
+        for path in paths.iter() {
             match self
                 .get(
-                    &path,
-                    proto::v1::View::TargetValue,
+                    &path.to_string(),
+                    proto::v1::View::CurrentValue,
                     vec![
-                        proto::v1::Field::ActuatorTarget.into(),
+                        proto::v1::Field::Value.into(),
                         proto::v1::Field::Metadata.into(),
                     ],
                 )
@@ -292,6 +302,7 @@ impl kuksa_common::ClientTraitV1 for KuksaClient {
                 Err(err) => return Err(err),
             }
         }
+        
 
         Ok(get_result)
     }
