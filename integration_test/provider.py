@@ -6,12 +6,16 @@ import sys
 import threading
 import queue
 import pytest
+import logging
 
 from pytest_bdd import given, when, then,parsers
 
 from gen_proto.kuksa.val.v2 import val_pb2_grpc;
 from gen_proto.kuksa.val.v2 import val_pb2;
 from gen_proto.kuksa.val.v2 import types_pb2;
+
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 class ProviderValV2:
     def __init__(self,pytestconfig):
@@ -25,7 +29,7 @@ class ProviderValV2:
         #    credentials = grpc.ssl_channel_credentials()
         #    self.channel = grpc.secure_channel(self.address, credentials)
         #else:
-        self.channel = grpc.insecure_channel(self.pytestconfig.getini('viss_grpc_base_url'))
+        self.channel = grpc.insecure_channel(self.pytestconfig.getini('grpc_base_url'))
         self.stub = val_pb2_grpc.VALStub(self.channel)
 
         # For the bidirectional stream
@@ -106,7 +110,10 @@ class ProviderValV2:
                 elif response.HasField("update_filter_request"):
                     self._response_queue.put(response)
                 elif response.HasField("get_provider_value_request"):
+                    print("before queue size: ", self._response_queue.qsize())
                     self._response_queue.put(response)
+                    print("queue size: ", self._response_queue.qsize())
+                    print("response: ", response)
                 else:
                     print("Received unknown response:", response)
                 # Check shutdown flag between responses.
@@ -158,6 +165,22 @@ class ProviderValV2:
         msg = val_pb2.OpenProviderStreamRequest(provider_error_indication=req)
         self._request_queue.put(msg)
 
+    def send_provider_get_value_response(self):
+
+        datapoint_value = types_pb2.Value(
+            float=2.0  # Directly set the float field (not FLOAT_FIELD_NUMBER)
+        )
+        datapoint = types_pb2.Datapoint(value=datapoint_value)
+
+        # Use a dictionary for the map<int32, Datapoint> field
+        req = val_pb2.GetProviderValueResponse(
+            request_id=123,  # Don't forget the required uint32 request_id
+            entries={
+                882: datapoint  # Key must be int32, value must be a Datapoint instance
+            }
+        )
+        msg = val_pb2.OpenProviderStreamRequest(get_provider_value_response=req)
+        self._request_queue.put(msg)
     # --- Methods for receiving various types of request through the same stream ---
 
     def received_provide_actuation_response(self, request):
@@ -170,13 +193,6 @@ class ProviderValV2:
     def received_publish_values_response(self, request):
         response = self._response_queue.get()
         if response.HasField("publish_values_response"):
-            return response
-        else:
-            None
-
-    def received_provide_signal_response(self, request):
-        response = self._response_queue.get()
-        if response.HasField("provide_signal_response"):
             return response
         else:
             None
@@ -202,8 +218,12 @@ class ProviderValV2:
         else:
             None
 
-    def received_get_provider_value_request(self, request):
+    def received_get_provider_value_request(self):
+        print("received_get_provider_value_request queue size: ", self._response_queue.qsize())
         response = self._response_queue.get()
+        print(response)
+        response = self._response_queue.get()
+
         if response.HasField("get_provider_value_request"):
             return response
         else:
@@ -231,11 +251,33 @@ def claim_signal(connected_provider, path):
 
 @when(parsers.parse('Provider disconnects'))
 def disconnect(connected_provider):
+    time.sleep(2)
     connected_provider.disconnect()
+
+@then(parsers.parse('Provider should receive a valid read request for path "{path}"'))
+def receive_get_value_request(connected_provider, path):
+    time.sleep(3) # sleep to wait to receiver the response
+    response = connected_provider.received_get_provider_value_request()
+    print("RESPONSE ", response)
+    assert response.get_provider_value_request.signal_ids[0]==882
+    connected_provider.disconnect()
+
+@then(parsers.parse('Provider should send valid value for path "{path}"'))
+def provider_send_response(connected_provider, path):
+    logger.debug("\n\n\n\provider_send_response(connected_provider\n\n\n")
+    print("def provider_send_response(connected_provider, path):", path, "\n\n\n")
+    connected_provider.send_provider_get_value_response()
+
 
 # Example usage:
 def main():
-    provider = ProviderValV2(host="localhost", port=55555, secure=False)
+    class DummyConfig:
+        def getini(self, key):
+            # Replace with your actual gRPC base URL.
+            return "localhost:55555"
+
+    dummy_config = DummyConfig()
+    provider = ProviderValV2(dummy_config)
 
     # Retrieve and store metadata.
     #metadata = client.list_metadata(root_branch="Vehicle")
@@ -245,7 +287,7 @@ def main():
             #print(f"  ID: {key}, Metadata: {meta}")
 
     # Step 2: Start the bidirectional stream
-    provider.start_stream()
+    #provider.start_stream()
 
     # Step 3: Set frequency to 2 Hz (2 messages per second)
     provider.set_frequency(2.0)
@@ -274,15 +316,18 @@ def main():
     # Step 9: Send GetProviderValueResponse
     #response_value = val_pb2.GetValueResponse()
     #response_value.value.value_str = "retrieved_value"
-    #client.send_get_provider_value_response(request_id=3, response=response_value)
+    time.sleep(10)
+
+    provider.send_provider_get_value_response()
 
     # Step 10: Send ProviderErrorIndication
     #provider_error = val_pb2.ProviderError(code=2, message="Sample error occurred")
     #client.send_provider_error_indication(provider_error=provider_error)
 
     # Step 11: Let the stream run for a while
-    time.sleep(10)
+    time.sleep(1)
 
+    provider.disconnect()
     # Step 12: Shutdown the stream
     # client.shutdown()
 
