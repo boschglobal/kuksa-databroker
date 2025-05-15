@@ -31,7 +31,7 @@ async fn publish_values(
     request: &databroker_proto::kuksa::val::v2::PublishValuesRequest,
 ) -> Option<OpenProviderStreamResponse> {
     let ids: Vec<(i32, broker::EntryUpdate)> = request
-        .datapoints
+        .data_points
         .iter()
         .map(|(id, datapoint)| {
             (
@@ -104,6 +104,7 @@ pub async fn serve(broker: broker::DataBroker) -> Result<(), Box<dyn std::error:
             }
             Some(BatchActuateStreamResponse(_)) => {}
             None => {}
+            _ => todo!()
         }
     }
     Ok(())
