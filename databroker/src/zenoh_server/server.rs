@@ -74,11 +74,19 @@ async fn publish_values(
 pub async fn serve(broker: broker::DataBroker) -> Result<(), Box<dyn std::error::Error>> {
     let mut config = zenoh::config::Config::default();
 
-    let _ = config.insert_json5("mode", &json!(WhatAmI::Router.to_str()).to_string());
+    let _ = config.insert_json5("mode", &json!(WhatAmI::Peer.to_str()).to_string());
 
-    let endpoint = vec![format!("udp/127.0.0.1:{}", 17447)];
+    let endpoint = vec![format!("unixpipe/example-pipe")];
 
     let _ = config.insert_json5("listen/endpoints", &json!(endpoint).to_string());
+
+    let _ = config.insert_json5("transport/shared_memory/enabled", &json!(true).to_string());
+
+    let _ = config.insert_json5("transport/unicast/lowlatency", &json!(true).to_string());
+
+    let _ = config.insert_json5("transport/unicast/qos/enabled", &json!(false).to_string());
+
+    let _ = config.insert_json5("scouting/multicast/enabled", &json!(false).to_string());
 
     let session = zenoh::open(config).await.unwrap();
 
