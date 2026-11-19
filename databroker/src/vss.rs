@@ -546,6 +546,8 @@ pub fn parse_vss_from_str(data: &str) -> Result<BTreeMap<String, DataEntry>, Err
 }
 
 #[test]
+/// Verifies: FR1-AD (Handling of COVESA Vehicle Signal Specification syntax)
+/// Verifies: FR2-AD (Support for VSS metadata elements by Databroker)
 fn test_parse_vss() {
     let data = r#"
 {

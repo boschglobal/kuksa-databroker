@@ -4956,6 +4956,8 @@ pub mod tests {
     /// was placed *before* `match changed` — to suppress the initial
     /// notification.  The fix moves the guard inside the `Some(changed)` arm
     /// so it never affects the `None` (initial) notification path.
+    ///
+    /// Verifies: FR4-ASC (Filtered interval subscription for Signal Values)
     #[tokio::test]
     async fn test_subscribe_initial_notification_delivered_with_min_sample_interval() {
         let broker = DataBroker::default();

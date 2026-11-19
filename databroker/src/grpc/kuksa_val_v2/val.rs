@@ -1425,6 +1425,7 @@ mod tests {
         tonic::Request::new(stream)
     }
 
+    /// Verifies: FR2-ASC (Uniform retrieval of vehicle and environmental Signal Values)
     #[tokio::test]
     async fn test_get_value_id_ok() {
         let broker = DataBroker::default();
@@ -1473,6 +1474,7 @@ mod tests {
         }
     }
 
+    /// Verifies: FR2-ASC (Uniform retrieval of vehicle and environmental Signal Values)
     #[tokio::test]
     async fn test_get_value_name_ok() {
         let broker = DataBroker::default();
@@ -2086,6 +2088,7 @@ mod tests {
         test_get_values_combo(config).await;
     }
 
+    /// Verifies: FR3-AP (Publishing of Signal Values by Provider)
     #[tokio::test]
     async fn test_publish_value() {
         let broker = DataBroker::default();
@@ -2460,6 +2463,7 @@ mod tests {
     /*
         Test subscribe service method by id
     */
+    /// Verifies: FR3-AD (Consumer subscription management by Databroker)
     async fn test_subscribe_case_by_id(has_value: bool) {
         async fn check_stream_next_by_id(
             item: &Result<proto::SubscribeByIdResponse, tonic::Status>,
@@ -2610,6 +2614,7 @@ mod tests {
         }
     }
 
+    /// Verifies: FR3-ASC (Subscription and high frequency notification for Signal Value changes)
     #[tokio::test(flavor = "multi_thread")]
     async fn test_subscribe() {
         test_subscribe_case(false).await;
@@ -2621,6 +2626,7 @@ mod tests {
     /*
         Test open_provider_stream service method
     */
+    /// Verifies: FR5-AP (Signal state update mechanism for providers by Databroker)
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_publish_value_request_without_first_claiming_it() {
         let broker = DataBroker::default();
@@ -2719,6 +2725,7 @@ mod tests {
         }
     }
 
+    /// Verifies: FR5-ASC (Accessing static metadata of signals)
     #[tokio::test]
     async fn test_list_metadata_min_max() {
         let broker = DataBroker::default();
@@ -2775,6 +2782,7 @@ mod tests {
         }
     }
 
+    /// Verifies: FR5-ASC (Accessing static metadata of signals)
     #[tokio::test]
     async fn test_list_metadata_using_wildcard() {
         let broker = DataBroker::default();
@@ -3120,6 +3128,7 @@ mod tests {
         )
     }
 
+    /// Verifies: FR6-ASC (Actuation of actuator value with Databroker forwarded acknowledgment)
     #[tokio::test]
     async fn test_actuate_success() {
         let broker = DataBroker::default();
@@ -3450,6 +3459,7 @@ mod tests {
         )
     }
 
+    /// Verifies: FR7-ASC (Actuate multiple actuators simultaneously with Databroker forwarded ack)
     #[tokio::test]
     async fn test_batch_actuate_success() {
         let broker = DataBroker::default();
@@ -3583,6 +3593,8 @@ mod tests {
         }
     }
 
+    /// Verifies: FR4-AD (Actuator ownership claim management by Databroker)
+    /// Verifies: FR1-AP (Provider actuator ownership claim management by Databroker)
     #[tokio::test]
     async fn test_provide_actuation_success() {
         let broker = DataBroker::default();
@@ -3780,6 +3792,8 @@ mod tests {
         }
     }
 
+    /// Verifies: FR4-AP (Actuation notification handling for Provider)
+    /// Verifies: FR5-AD (Command transmission capabilities of Databroker to Provider)
     #[tokio::test]
     async fn test_actuate_stream_success() {
         let broker = DataBroker::default();
@@ -3843,6 +3857,7 @@ mod tests {
         }
     }
 
+    /// Verifies: FR1-ASC (Single access service Point for Signal Consumer)
     #[tokio::test]
     async fn test_get_server_info() {
         let version = "1.1.1";
@@ -3978,6 +3993,7 @@ mod tests {
         (provider, broadcast_tx)
     }
 
+    /// Verifies: FR2-AP (High-Frequency publishing of Signal Values by Provider)
     #[tokio::test]
     async fn test_provider_correct_response_accepted() {
         let our_signal = 1;

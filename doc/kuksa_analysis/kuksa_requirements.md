@@ -46,6 +46,8 @@
 
     Description: The Signal Consumer shall have a single service point accessible.
 
+    Verified by: test_get_server_info in `databroker/src/grpc/kuksa_val_v2/val.rs`
+
 ### FR2-ASC
     Title: Uniform retrieval of vehicle and environmental Signal Values
 
@@ -61,6 +63,11 @@
       2.  The Signal Consumer only shall get values for signal to which it has permission to.
       3.  The Signal Consumer shall provide the paths or ids(int32) of the requested signals.
 
+    Verified by:
+      - test_get_value_id_ok, test_get_value_name_ok, test_get_value_id_not_authorized, and test_get_value_id_not_defined in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+      - test_get_set_datapoint and test_get_set_allowed_values in `databroker/src/broker.rs` (In-Memory Validation)
+
+
 ### FR3-ASC
     Title: Subscription and high frequency notification for Signal Value changes
 
@@ -73,10 +80,12 @@
       *  The Signal Consumer only shall get values for signal to which it has permission to.
       *  The Signal Consumer shall provide the paths or the ids(int32) of the requested signals.
 
+    Verified by: test_subscribe (test_subscribe_case, test_subscribe_case_by_id) in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+
 ### FR4-ASC
     Title: Filtered interval subscription for Signal Values
 
-    Status: 🔴
+    Status: 🟡 (limited verification)
 
     Description: The Signal Consumer shall subscribe and be able to apply a filter to receive a signal values with an interval of x milliseconds.
       *  IF there is an error
@@ -84,6 +93,9 @@
           ELSE the Signal Consumer shall receive exactly all the signals’ values requested.
       *  The Signal Consumer only shall get values for signal to which it has permission to.
       *  The Signal Consumer shall provide the paths or the ids(int32) of the requested signals.
+
+    Verified by: test_subscribe_initial_notification_delivered_with_min_sample_interval in `databroker/src/broker.rs`.
+    Note: Test coverage is limited to verifying that the throttle guard does not block the immediate delivery of the initial notification (Regression test for Issue #186). Actual continuous down-sampling over time is not verified in this integration test.
 
 ### FR5-ASC
     Title: Accessing static metadata of signals
@@ -97,6 +109,8 @@
 
       * All sensors, actuators, and attributes values for which a Signal Consumer has permission to.
       * The Signal Consumer shall provide the path, paths or wildcard of the signals.
+
+    Verified by: test_list_metadata_min_max and test_list_metadata_using_wildcard in `databroker/src/grpc/kuksa_val_v2/val.rs`.
 
 ### FR6-ASC
     Title: Actuation of actuator value with Databroker forwarded acknowledgment.
@@ -112,6 +126,8 @@
             THEN Signal Consumer shall receive an acknowledgement of receipt.
       * IF provided signal path is not an actuator Signal Consumer should receive an error.
 
+    Verified by: test_actuate_success in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+
 ### FR7-ASC
     Title: Actuate multiple actuators simultaneously with Databroker forwarded acknowledgment.
 
@@ -126,12 +142,16 @@
             THEN Signal Consumer shall receive an acknowledgement of receipt.
       * IF provided signal path is not an actuator Signal Consumer should receive an error.
 
+    Verified by: test_batch_actuate_success in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+
 ### FR8-ASC
     Title: Provider availability detection for Signal Consumer
 
     Status: 🔴
 
     Description: The Signal Consumer shall be able to know if there is a provider up and running.
+
+    Verified by:
 
 ## As Databroker
 ### FR1-AD
@@ -141,12 +161,21 @@
 
     Description: The Databroker shall handle catalogs of signals described by the syntax as defined by the COVESA Vehicle Signal Specification (VSS). This relates to all aspects of the VSS syntax definition, which is also called VSS rule set. This implies that the Databroker can handle the signal catalog as defined by the COVESA VSS.
 
+    Verified by:
+      - test_parse_vss in `databroker/src/vss.rs` (JSON-Parsing).
+      - test_register_invalid_and_valid_path in databroker/src/broker.rs (VSS path validation).
+
 ### FR2-AD
     Title: Support for VSS metadata elements by Databroker
 
     Status: 🟢
 
     Description: The Databroker shall support at least those metadata elements as defined by the VSS rule set.
+
+    Verified by:
+      - test_parse_vss in `databroker/src/vss.rs` (unit, min, max, allowed, default).
+      - test_register_invalid_type and test_bool_array/test_string_array in `databroker/src/broker.rs` (interne verification of meta data).
+
 
 ### FR3-AD
     Title: Consumer subscription management by Databroker
@@ -155,6 +184,8 @@
 
     Description: The Databroker shall keep a local record of all subscriptions of signal consumers.
       * The Databroker shall add or remove subscriptions to a subscription pool according to the subscription requests of the Signal Consumer.
+
+    Verified by: test_subscribe (test_subscribe_case, test_subscribe_case_by_id) in `databroker/src/grpc/kuksa_val_v2/val.rs`.
 
 ### FR4-AD
     Title: Actuator ownership claim management by Databroker
@@ -165,6 +196,7 @@
       * The Databroker shall manage an "ownership claim actuation pool," adding or removing claims based on the requests from signal providers.
       * Each actuator can be claimed by only one provider at any given time.
 
+    Verified by: test_provide_actuation_success in `databroker/src/grpc/kuksa_val_v2/val.rs` and verified structurally by method `provide_actuation` in `databroker/src/broker.rs`.
 
 ### FR5-AD
     Title: Command transmission capabilities of Databroker to Provider
@@ -175,6 +207,8 @@
     * Actuate on actuator. 🟢
     * Start receiving signal values from the Provider. 🟡
     * Stop receiving signal values from the Provider. 🟡
+
+    Verified by: test_actuate_stream_success in `databroker/src/grpc/kuksa_val_v2/val.rs`.
 
 ## As Provider
 ### FR1-AP
@@ -192,6 +226,8 @@
       * The Databroker shall remember accepted claims of a provider if the connection to the provider is lost.
       * The Databroker shall allow providers to re-claim previously successfully claimed actuators.
 
+    Verified by: test_provide_actuation_success in `databroker/src/grpc/kuksa_val_v2/val.rs` and verified structurally by method `provide_actuation` in `databroker/src/broker.rs`.
+
 ### FR2-AP
     Title: High-Frequency publishing of Signal Values by Provider
 
@@ -202,6 +238,9 @@
             the provider has providing rights for all signals
           THEN the Databroker shall accept and store the values
           ELSE the Databroker shall reject the overall request and return an error response containing the reason.
+
+    Verified by: test_provider_correct_response_accepted in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+    Note: This test verfies the functional correlation and acceptance of single provider data packets (matching request_id and signal_id). High-frequency load or cyclic timing behavior is not simulated or asserted within this unit test.
 
 ### FR3-AP
     Title: Publishing of Signal Values by Provider
@@ -214,6 +253,8 @@
           THEN the Databroker shall accept and store the values
           ELSE the Databroker shall reject the overall request and return an error response containing the reason.
 
+    Verified by: test_publish_value in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+
 ### FR4-AP
     Title: Actuation notification handling
 
@@ -224,17 +265,21 @@
       * Provider shall process actuation requests and forward them to the Vehicle Network.
       * Provider shall notify the Databroker back right after the actuation request was forwarded.
 
+    Verified by: test_actuate_stream_success in `databroker/src/grpc/kuksa_val_v2/val.rs`.
+
 ### FR5-AP
     Title: Signal state update mechanism for providers by Databroker
 
-    Status: 🔴
+    Status: 🟢 / 🔴
 
-    Description: The Databroker shall offer a method to providers to update the current state of a set of signals.
-      a. The current state consists a timestamp and either of valid value or a failure state.
-      b. The Databroker shall offer a method optimized for frequent updates.
-      c. The Databroker should offer a second method for non-frequent updates that is easy to use in a provider's implementation.
-      d. The Databroker shall reject updating the current state of signals where the client is not the provider of.
-      e. The Databroker shall store the updated value or failure state of a signal.
+    Description: The Databroker shall offer a method to providers to update the current state of a set of signals. 🔴
+      a. The current state consists a timestamp and either of valid value or a failure state. 🔴
+      b. The Databroker shall offer a method optimized for frequent updates. 🔴
+      c. The Databroker should offer a second method for non-frequent updates that is easy to use in a provider's implementation. 🔴
+      d. The Databroker shall reject updating the current state of signals where the client is not the provider of. 🟢
+      e. The Databroker shall store the updated value or failure state of a signal. 🔴
+
+    Verified by: test_publish_value_request_without_first_claiming_it in `databroker/src/grpc/kuksa_val_v2/val.rs`.
 
 # Non-Functional Requirements
 
